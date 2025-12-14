@@ -65,6 +65,28 @@ class LocalExpenseRepository {
     );
   }
 
+  Future<int> ensureSystemCategory({
+    required String name,
+    required String icon,
+    required int color,
+  }) async {
+    final db = await _db;
+    final existing = await db.query(
+      'categories',
+      where: 'name = ?',
+      whereArgs: [name],
+      limit: 1,
+    );
+    if (existing.isNotEmpty) {
+      return existing.first['id'] as int;
+    }
+    return db.insert('categories', {
+      'name': name,
+      'icon': icon,
+      'color': color,
+    });
+  }
+
   Future<List<TransactionModel>> fetchTransactions({
     DateTime? from,
     DateTime? to,

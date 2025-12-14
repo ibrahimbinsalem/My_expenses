@@ -1,8 +1,11 @@
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../../core/constants/gulf_currencies.dart';
 import '../../../data/models/transaction_model.dart';
 import '../../../data/repositories/local_expense_repository.dart';
 import '../../../data/services/ai_insight_service.dart';
+import '../../../routes/app_routes.dart';
 
 class DashboardController extends GetxController {
   DashboardController(this._repository, this._insightService);
@@ -15,6 +18,42 @@ class DashboardController extends GetxController {
   final monthlySpending = <String, double>{}.obs;
   final insights = <String>[].obs;
   final recentTransactions = <TransactionModel>[].obs;
+  final navIndex = 0.obs;
+  final primaryCurrencyName = 'ريال سعودي'.obs;
+  final primaryCurrencyCode = 'SAR'.obs;
+
+  final navItems = const [
+    DashboardNavItem(
+      label: 'الرئيسية',
+      icon: Icons.space_dashboard_outlined,
+      selectedIcon: Icons.space_dashboard,
+      route: AppRoutes.dashboard,
+    ),
+    DashboardNavItem(
+      label: 'المحافظ',
+      icon: Icons.account_balance_wallet_outlined,
+      selectedIcon: Icons.account_balance_wallet,
+      route: AppRoutes.wallets,
+    ),
+    DashboardNavItem(
+      label: 'الأهداف',
+      icon: Icons.flag_outlined,
+      selectedIcon: Icons.flag,
+      route: AppRoutes.goals,
+    ),
+    DashboardNavItem(
+      label: 'الرؤى',
+      icon: Icons.insights_outlined,
+      selectedIcon: Icons.insights,
+      route: AppRoutes.insights,
+    ),
+    DashboardNavItem(
+      label: 'الإعدادات',
+      icon: Icons.settings_outlined,
+      selectedIcon: Icons.settings,
+      route: AppRoutes.settings,
+    ),
+  ];
 
   @override
   void onInit() {
@@ -26,6 +65,16 @@ class DashboardController extends GetxController {
     isLoading.value = true;
     try {
       totalBalance.value = await _repository.totalBalance();
+      final wallets = await _repository.fetchWallets();
+      if (wallets.isNotEmpty) {
+        primaryCurrencyCode.value = wallets.first.currency;
+        primaryCurrencyName.value = _resolveCurrencyName(
+          wallets.first.currency,
+        );
+      } else {
+        primaryCurrencyCode.value = 'SAR';
+        primaryCurrencyName.value = 'ريال سعودي';
+      }
       final now = DateTime.now();
       monthlySpending.assignAll(await _repository.spendingByCategory(now));
       final txns = await _repository.fetchTransactions(
@@ -38,4 +87,173 @@ class DashboardController extends GetxController {
       isLoading.value = false;
     }
   }
+
+  Future<void> onNavDestinationSelected(int index) async {
+    navIndex.value = index;
+    final destination = navItems[index];
+    if (destination.route == AppRoutes.dashboard) return;
+    await Get.toNamed(destination.route);
+    navIndex.value = 0;
+  }
+
+  String _resolveCurrencyName(String code) {
+    final normalized = code.toUpperCase();
+    for (final entry in gulfCurrencies) {
+      final entryCode = (entry['code'] as String).toUpperCase();
+      if (entryCode == normalized) {
+        return entry['name'] as String;
+      }
+    }
+    return 'عملة $code';
+  }
+
+  Future<void> openAddFundsSheet(BuildContext context) async {
+    final wallets = await _repository.fetchWallets();
+    if (wallets.isEmpty) {
+      Get.snackbar('تنبيه', 'أضف محفظة قبل شحن الرصيد');
+      return;
+    }
+
+    int? selectedWallet = wallets.first.id;
+    final amountController = TextEditingController();
+    final noteController = TextEditingController(text: 'شحن رصيد');
+
+    if (!context.mounted) return;
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 24,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          ),
+          child: StatefulBuilder(
+            builder: (context, setState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'شحن محفظة',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: 'المحفظة',
+                      border: OutlineInputBorder(),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<int>(
+                        value: selectedWallet,
+                        isExpanded: true,
+                        items: wallets
+                            .map(
+                              (wallet) => DropdownMenuItem(
+                                value: wallet.id,
+                                child: Text(
+                                  '${wallet.name} (${wallet.currency})',
+                                ),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) =>
+                            setState(() => selectedWallet = value),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: amountController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'المبلغ',
+                      prefixIcon: Icon(Icons.attach_money),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: noteController,
+                    decoration: const InputDecoration(
+                      labelText: 'ملاحظة',
+                      prefixIcon: Icon(Icons.note_alt_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        final amount = double.tryParse(
+                          amountController.text.trim(),
+                        );
+                        if (selectedWallet == null ||
+                            amount == null ||
+                            amount <= 0) {
+                          Get.snackbar('تنبيه', 'أدخل بيانات صحيحة');
+                          return;
+                        }
+                        final navigator = Navigator.of(context);
+                        await addFunds(
+                          walletId: selectedWallet!,
+                          amount: amount,
+                          note: noteController.text.trim(),
+                        );
+                        navigator.pop();
+                      },
+                      icon: const Icon(Icons.check),
+                      label: const Text('تأكيد الشحن'),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> addFunds({
+    required int walletId,
+    required double amount,
+    String? note,
+  }) async {
+    final depositCategoryId = await _repository.ensureSystemCategory(
+      name: 'شحن رصيد',
+      icon: 'savings',
+      color: 0xFF4CAF50,
+    );
+    final transaction = TransactionModel(
+      walletId: walletId,
+      categoryId: depositCategoryId,
+      amount: amount,
+      type: TransactionType.income,
+      note: note?.isEmpty ?? true ? 'شحن رصيد' : note,
+      date: DateTime.now(),
+    );
+    await _repository.addTransaction(transaction);
+    await loadDashboard();
+    Get.snackbar('تم بنجاح', 'تم شحن المحفظة وتسجيل العملية');
+  }
+}
+
+class DashboardNavItem {
+  final String label;
+  final IconData icon;
+  final IconData selectedIcon;
+  final String route;
+
+  const DashboardNavItem({
+    required this.label,
+    required this.icon,
+    required this.selectedIcon,
+    required this.route,
+  });
 }

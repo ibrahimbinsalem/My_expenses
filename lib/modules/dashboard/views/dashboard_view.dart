@@ -17,31 +17,7 @@ class DashboardView extends GetView<DashboardController> {
     final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('مصاريفي الذكي'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            onPressed: () => Get.toNamed(AppRoutes.settings),
-          ),
-          IconButton(
-            icon: const Icon(Icons.flag_outlined),
-            onPressed: () => Get.toNamed(AppRoutes.goals),
-          ),
-          IconButton(
-            icon: const Icon(Icons.receipt_long_outlined),
-            onPressed: () => Get.toNamed(AppRoutes.receipts),
-          ),
-          IconButton(
-            icon: const Icon(Icons.pie_chart),
-            onPressed: () => Get.toNamed(AppRoutes.insights),
-          ),
-          IconButton(
-            icon: const Icon(Icons.wallet),
-            onPressed: () => Get.toNamed(AppRoutes.wallets),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('مصاريفي الذكي')),
       body: Obx(
         () => RefreshIndicator(
           onRefresh: controller.loadDashboard,
@@ -69,7 +45,12 @@ class DashboardView extends GetView<DashboardController> {
                     ),
                     padding: const EdgeInsets.all(16),
                     children: [
-                      _BalanceCard(total: controller.totalBalance.value),
+                      _BalanceCard(
+                        total: controller.totalBalance.value,
+                        currencyName: controller.primaryCurrencyName.value,
+                        currencyCode: controller.primaryCurrencyCode.value,
+                        onAddFunds: () => controller.openAddFundsSheet(context),
+                      ),
                       const SizedBox(height: 16),
                       _SpendingChart(data: controller.monthlySpending),
                       const SizedBox(height: 16),
@@ -90,18 +71,46 @@ class DashboardView extends GetView<DashboardController> {
         icon: const Icon(Icons.add),
         label: const Text('إضافة عملية'),
       ),
+      bottomNavigationBar: Obx(
+        () => NavigationBar(
+          selectedIndex: controller.navIndex.value,
+          onDestinationSelected: controller.onNavDestinationSelected,
+          indicatorColor: Theme.of(context).colorScheme.secondaryContainer,
+          destinations: controller.navItems
+              .map(
+                (item) => NavigationDestination(
+                  icon: Icon(item.icon),
+                  selectedIcon: Icon(item.selectedIcon),
+                  label: item.label,
+                ),
+              )
+              .toList(),
+        ),
+      ),
     );
   }
 }
 
 class _BalanceCard extends StatelessWidget {
-  const _BalanceCard({required this.total});
+  const _BalanceCard({
+    required this.total,
+    required this.currencyName,
+    required this.currencyCode,
+    required this.onAddFunds,
+  });
 
   final double total;
+  final String currencyName;
+  final String currencyCode;
+  final VoidCallback onAddFunds;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final amountWords = Formatters.amountInArabicWords(
+      total,
+      currency: currencyName,
+    );
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -144,6 +153,28 @@ class _BalanceCard extends StatelessWidget {
                 style: TextStyle(color: Colors.white70),
               ),
             ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            amountWords,
+            style: const TextStyle(color: Colors.white70, fontSize: 14),
+          ),
+          Text(
+            'العملة: $currencyName ($currencyCode)',
+            style: const TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white,
+                side: const BorderSide(color: Colors.white70),
+              ),
+              onPressed: onAddFunds,
+              icon: const Icon(Icons.add_card),
+              label: const Text('شحن محفظة'),
+            ),
           ),
         ],
       ),
