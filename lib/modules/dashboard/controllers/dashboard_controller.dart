@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../../../core/constants/gulf_currencies.dart';
 import '../../../data/models/transaction_model.dart';
+import '../../../data/models/wallet_model.dart';
 import '../../../data/repositories/local_expense_repository.dart';
 import '../../../data/services/ai_insight_service.dart';
 import '../../../routes/app_routes.dart';
@@ -18,7 +19,9 @@ class DashboardController extends GetxController {
   final monthlySpending = <String, double>{}.obs;
   final insights = <String>[].obs;
   final recentTransactions = <TransactionModel>[].obs;
+  final walletSummaries = <WalletSummary>[].obs;
   final navIndex = 0.obs;
+  final isBalanceHidden = true.obs;
   final primaryCurrencyName = 'ريال سعودي'.obs;
   final primaryCurrencyCode = 'SAR'.obs;
 
@@ -66,6 +69,7 @@ class DashboardController extends GetxController {
     try {
       totalBalance.value = await _repository.totalBalance();
       final wallets = await _repository.fetchWallets();
+      walletSummaries.assignAll(await _buildWalletSummaries(wallets));
       if (wallets.isNotEmpty) {
         primaryCurrencyCode.value = wallets.first.currency;
         primaryCurrencyName.value = _resolveCurrencyName(
@@ -88,12 +92,33 @@ class DashboardController extends GetxController {
     }
   }
 
+  Future<List<WalletSummary>> _buildWalletSummaries(
+    List<WalletModel> wallets,
+  ) async {
+    if (wallets.isEmpty) return [];
+    final futures = wallets.map((wallet) async {
+      final txns = wallet.id == null
+          ? <TransactionModel>[]
+          : await _repository.fetchTransactionsByWallet(wallet.id!);
+      return WalletSummary(
+        wallet: wallet,
+        currencyName: _resolveCurrencyName(wallet.currency),
+        transactions: txns,
+      );
+    }).toList();
+    return Future.wait(futures);
+  }
+
   Future<void> onNavDestinationSelected(int index) async {
     navIndex.value = index;
     final destination = navItems[index];
     if (destination.route == AppRoutes.dashboard) return;
     await Get.toNamed(destination.route);
     navIndex.value = 0;
+  }
+
+  void toggleBalanceVisibility() {
+    isBalanceHidden.toggle();
   }
 
   String _resolveCurrencyName(String code) {
@@ -255,5 +280,17 @@ class DashboardNavItem {
     required this.icon,
     required this.selectedIcon,
     required this.route,
+  });
+}
+
+class WalletSummary {
+  final WalletModel wallet;
+  final String currencyName;
+  final List<TransactionModel> transactions;
+
+  const WalletSummary({
+    required this.wallet,
+    required this.currencyName,
+    required this.transactions,
   });
 }
