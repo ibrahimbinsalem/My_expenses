@@ -5,6 +5,9 @@ import '../../../core/constants/app_colors.dart';
 import '../../../routes/app_routes.dart';
 import '../controllers/goals_controller.dart';
 import '../../../data/models/goal_model.dart';
+import '../widgets/goal_contribution_sheet.dart';
+import '../../../core/utils/formatters.dart';
+import '../../../widgets/currency_picker_field.dart';
 
 class GoalsView extends GetView<GoalsController> {
   const GoalsView({super.key});
@@ -23,44 +26,53 @@ class GoalsView extends GetView<GoalsController> {
         ],
       ),
       body: Obx(() {
-        final goals = controller.goals;
-        final totalTarget = goals.fold<double>(
+        final allGoals = controller.goals.toList();
+        allGoals.sort((a, b) => a.deadline.compareTo(b.deadline));
+        final activeGoals =
+            allGoals.where((goal) => goal.walletId == null).toList();
+        final archivedGoals =
+            allGoals.where((goal) => goal.walletId != null).toList();
+        final totalTarget = activeGoals.fold<double>(
           0.0,
           (sum, goal) => sum + goal.targetAmount,
         );
-        final totalCurrent = goals.fold<double>(
+        final totalCurrent = activeGoals.fold<double>(
           0.0,
           (sum, goal) => sum + goal.currentAmount,
         );
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _GoalsOverview(
-              totalTarget: totalTarget,
-              totalCurrent: totalCurrent,
-              controller: controller,
-            ),
-            const SizedBox(height: 20),
+            
             _GoalForm(controller: controller),
             const SizedBox(height: 20),
-            if (controller.isLoading.value && goals.isEmpty)
+            if (controller.isLoading.value && activeGoals.isEmpty)
               const Center(child: CircularProgressIndicator())
-            else if (goals.isEmpty)
+            else if (activeGoals.isEmpty)
               _EmptyGoalsState(onAddTransaction: () {
                 Get.toNamed(AppRoutes.addTransaction);
               })
             else
-              ...goals.map((goal) {
+              ...activeGoals.map((goal) {
                 final dueDate =
                     '${goal.deadline.day}/${goal.deadline.month}/${goal.deadline.year}';
                 final payoutWallet = controller.walletForId(goal.walletId);
+                final isCompleted = goal.isCompleted;
                 final currencyLabel = goal.currency ??
                     payoutWallet?.currency ??
                     '—';
                 return Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: goal.id == null
+                        ? null
+                        : () => Get.toNamed(
+                              AppRoutes.goalDetails,
+                              arguments: goal.id,
+                            ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
@@ -74,18 +86,18 @@ class GoalsView extends GetView<GoalsController> {
                             ),
                             Chip(
                               label: Text(
-                                goal.progress >= 1
+                                goal.isCompleted
                                     ? 'goals.status.completed'.tr
                                     : 'goals.status.in_progress'.tr,
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
-                              backgroundColor: goal.progress >= 1
+                              backgroundColor: goal.isCompleted
                                   ? AppColors.success.withOpacity(0.15)
                                   : AppColors.secondary.withOpacity(0.15),
                               labelStyle: TextStyle(
-                                color: goal.progress >= 1
+                                color: goal.isCompleted
                                     ? AppColors.success
                                     : AppColors.secondary,
                               ),
@@ -118,20 +130,38 @@ class GoalsView extends GetView<GoalsController> {
                         })),
                         const SizedBox(height: 12),
                         if (goal.id != null)
-                          FilledButton.icon(
-                            onPressed: () => _showContributionSheet(
-                              context,
-                              controller,
-                              goal,
-                            ),
-                            icon: const Icon(Icons.savings_outlined),
-                            label: Text('goals.contribution.add'.tr),
+                          SizedBox(
+                            width: double.infinity,
+                            child: isCompleted
+                                ? OutlinedButton.icon(
+                                    onPressed: () =>
+                                        Get.toNamed(AppRoutes.goalDetails,
+                                            arguments: goal.id),
+                                    icon: const Icon(Icons.swap_horiz),
+                                    label: Text('goals.transfer.button'.tr),
+                                  )
+                                : FilledButton.icon(
+                                    onPressed: () =>
+                                        showGoalContributionSheet(
+                                      context: context,
+                                      controller: controller,
+                                      goal: goal,
+                                    ),
+                                    icon:
+                                        const Icon(Icons.savings_outlined),
+                                    label: Text(
+                                        'goals.contribution.add'.tr),
+                                  ),
                           ),
                       ],
                     ),
                   ),
-                );
+                ));
               }),
+            if (archivedGoals.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              _ArchivedGoalsSection(goals: archivedGoals),
+            ],
           ],
         );
       }),
@@ -146,26 +176,116 @@ class _GoalForm extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('هدف جديد'.tr),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller.nameController,
-              decoration: InputDecoration(labelText: 'اسم الهدف'.tr),
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF143C54), Color(0xFF0D1F2C)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 18,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.flag, color: Colors.white),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'هدف جديد'.tr,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(color: Colors.white),
+                    ),
+                    Text(
+                      'ضع اسمًا ومبلغًا واضحين وعرّف عملة الادخار.'.tr,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: Colors.white70),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: controller.nameController,
+            decoration: InputDecoration(
+              labelText: 'اسم الهدف'.tr,
+              filled: true,
+              fillColor: Colors.white.withOpacity(0.08),
+              labelStyle: const TextStyle(color: Colors.white),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller.amountController,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(labelText: 'المبلغ المستهدف'.tr),
+            style: const TextStyle(color: Colors.white),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: TextField(
+                  controller: controller.amountController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: 'المبلغ المستهدف'.tr,
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.08),
+                    labelStyle: const TextStyle(color: Colors.white),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  style: const TextStyle(color: Colors.white),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Material(
+                  color: Colors.transparent,
+                  child: CurrencyPickerField(
+                    controller: controller.currencyController,
+                    label: 'goals.form.currency_label',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(14),
             ),
-            const SizedBox(height: 12),
-            Obx(
+            child: Obx(
               () => Row(
                 children: [
                   Expanded(
@@ -174,10 +294,11 @@ class _GoalForm extends StatelessWidget {
                         'date':
                             '${controller.deadline.value.day}/${controller.deadline.value.month}/${controller.deadline.value.year}',
                       }),
+                      style: const TextStyle(color: Colors.white),
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.date_range),
+                    icon: const Icon(Icons.date_range, color: Colors.white),
                     onPressed: () async {
                       final picked = await showDatePicker(
                         context: context,
@@ -193,13 +314,71 @@ class _GoalForm extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 12),
-            ElevatedButton(
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black87,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
               onPressed: controller.createGoal,
-              child: Text('إضافة الهدف'.tr),
+              icon: const Icon(Icons.check_circle_outline),
+              label: Text(
+                'إضافة الهدف'.tr,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ArchivedGoalsSection extends StatelessWidget {
+  const _ArchivedGoalsSection({required this.goals});
+
+  final List<GoalModel> goals;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      child: ExpansionTile(
+        title: Text('goals.archived.title'.tr),
+        subtitle: Text(
+          'goals.archived.subtitle'.trParams({
+            'count': goals.length.toString(),
+          }),
+          style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
         ),
+        children: goals.map((goal) {
+          final formattedAmount =
+              Formatters.currency(goal.currentAmount, symbol: goal.currency);
+          return ListTile(
+            leading: const Icon(Icons.archive_outlined),
+            title: Text(goal.name),
+            subtitle: Text(
+              'goals.archived.amount'.trParams({
+                'amount': formattedAmount,
+                'date': Formatters.shortDate(goal.deadline),
+              }),
+            ),
+            trailing: TextButton(
+              onPressed: () => Get.toNamed(
+                AppRoutes.goalDetails,
+                arguments: goal.id,
+              ),
+              child: Text('goals.archived.view'.tr),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
@@ -323,85 +502,6 @@ class _EmptyGoalsState extends StatelessWidget {
       ),
     );
   }
-}
-
-void _showContributionSheet(
-  BuildContext context,
-  GoalsController controller,
-  GoalModel goal,
-) {
-  final amountController = TextEditingController();
-  final noteController = TextEditingController();
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-    ),
-    builder: (context) {
-      return Padding(
-        padding: EdgeInsets.only(
-          left: 20,
-          right: 20,
-          top: 24,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'goals.contribution.add'.tr,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: amountController,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              decoration: InputDecoration(
-                labelText: 'goals.contribution.amount_label'.tr,
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: noteController,
-              decoration: InputDecoration(
-                labelText: 'goals.contribution.note_label'.tr,
-              ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () async {
-                  final parsed = double.tryParse(amountController.text);
-                  if (parsed == null || parsed <= 0) {
-                    Get.snackbar(
-                      'common.alert'.tr,
-                      'goals.contribution.invalid'.tr,
-                    );
-                    return;
-                  }
-                  await controller.addContribution(
-                    goal,
-                    parsed,
-                    note: noteController.text,
-                  );
-                  Get.back();
-                  Get.snackbar(
-                    'common.success'.tr,
-                    'goals.contribution.success'.tr,
-                  );
-                },
-                child: Text('goals.contribution.submit'.tr),
-              ),
-            ),
-          ],
-        ),
-      );
-    },
-  );
 }
 
 void _showGoalsGuide(BuildContext context) {

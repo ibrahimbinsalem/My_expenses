@@ -4,6 +4,8 @@ abstract class AppRoutes {
   static const addTransaction = '/add-transaction';
   static const wallets = '/wallets';
   static const goals = '/goals';
+  static const goalDetails = '/goals/details';
+  static const goalCelebration = '/goals/celebration';
   static const insights = '/insights';
   static const receipts = '/receipts';
   static const settings = '/settings';

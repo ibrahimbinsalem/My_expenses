@@ -382,56 +382,93 @@ class LocalExpenseRepository {
         whereArgs: [contribution.goalId],
         limit: 1,
       );
-      if (goal.isNotEmpty) {
-        await _ensureGoalWallet(txn, goal.first);
-      }
       return id;
     });
   }
 
-  Future<void> _ensureGoalWallet(
-    DatabaseExecutor db,
-    Map<String, Object?> goalRow,
+  Future<bool> transferGoalSavings(
+    int goalId,
+    int walletId,
   ) async {
-    final goalId = goalRow['id'] as int?;
-    if (goalId == null) return;
-    final target = (goalRow['target_amount'] as num).toDouble();
-    final current = (goalRow['current_amount'] as num).toDouble();
-    final existingWallet = goalRow['wallet_id'] as int?;
-    if (current < target || existingWallet != null) {
-      return;
+    final db = await _db;
+    return db.transaction<bool>((txn) async {
+      final goalRows = await txn.query(
+        'goals',
+        where: 'id = ?',
+        whereArgs: [goalId],
+        limit: 1,
+      );
+      if (goalRows.isEmpty) return false;
+      final goalRow = goalRows.first;
+      final current = (goalRow['current_amount'] as num).toDouble();
+      final target = (goalRow['target_amount'] as num).toDouble();
+      final existingWallet = goalRow['wallet_id'] as int?;
+      if (current < target || existingWallet != null) {
+        return false;
+      }
+      final walletRows = await txn.query(
+        'wallets',
+        where: 'id = ?',
+        whereArgs: [walletId],
+        limit: 1,
+      );
+      if (walletRows.isEmpty) return false;
+      final walletCurrency =
+          (walletRows.first['currency'] as String?) ?? '';
+      final goalCurrency = (goalRow['currency'] as String?) ?? '';
+      if (walletCurrency != goalCurrency) {
+        return false;
+      }
+      final goalName = goalRow['name'] as String? ?? 'Goal';
+      final categoryId = await _ensureTransferCategory(txn);
+      final transaction = TransactionModel(
+        walletId: walletId,
+        categoryId: categoryId,
+        amount: current,
+        type: TransactionType.income,
+        note: 'goals.transfer.transaction_note'.trParams({'name': goalName}),
+        date: DateTime.now(),
+        goalId: goalId,
+      );
+      await txn.insert('transactions', transaction.toMap());
+      await _updateWalletBalance(txn, transaction);
+      await txn.update(
+        'goals',
+        {'wallet_id': walletId},
+        where: 'id = ?',
+        whereArgs: [goalId],
+      );
+      await txn.insert(
+        'notifications_log',
+        NotificationLogModel(
+          title: 'goals.status.completed'.tr,
+          body: 'transactions.goal.completed'
+              .trParams({'name': goalName}),
+          type: 'goal',
+          createdAt: DateTime.now(),
+        ).toMap(),
+      );
+      return true;
+    });
+  }
+
+  Future<int> _ensureTransferCategory(DatabaseExecutor db) async {
+    final existing = await db.query(
+      'categories',
+      where: 'name IN (?, ?)',
+      whereArgs: ['Goal Transfer', 'تحويل هدف'],
+      limit: 1,
+    );
+    if (existing.isNotEmpty) {
+      return existing.first['id'] as int;
     }
     final locale = Get.locale?.languageCode ?? 'ar';
-    final goalName = goalRow['name'] as String? ?? 'Goal';
-    final walletName = locale == 'en'
-        ? 'Goal Savings - $goalName'
-        : 'مدخرات الهدف - $goalName';
-    final currency = (goalRow['currency'] as String?) ?? 'SAR';
-    final walletId = await db.insert('wallets', {
-      'user_id': null,
-      'name': walletName,
-      'type': 'goal',
-      'balance': current,
-      'currency': currency,
-      'created_at': DateTime.now().toIso8601String(),
-      'is_goal': 1,
+    final name = locale == 'en' ? 'Goal Transfer' : 'تحويل هدف';
+    return db.insert('categories', {
+      'name': name,
+      'icon': 'savings',
+      'color': 0xFF4CAF50,
     });
-    await db.update(
-      'goals',
-      {'wallet_id': walletId},
-      where: 'id = ?',
-      whereArgs: [goalId],
-    );
-    await db.insert(
-      'notifications_log',
-      NotificationLogModel(
-        title: 'goals.status.completed'.tr,
-        body: 'transactions.goal.completed'
-            .trParams({'name': goalName}),
-        type: 'goal',
-        createdAt: DateTime.now(),
-      ).toMap(),
-    );
   }
 
   Future<List<GoalModel>> fetchGoals() async {

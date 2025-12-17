@@ -24,6 +24,11 @@ class GoalModel {
     return (currentAmount / targetAmount).clamp(0, 1);
   }
 
+  bool get isCompleted {
+    if (targetAmount == 0) return false;
+    return currentAmount >= targetAmount;
+  }
+
   factory GoalModel.fromMap(Map<String, dynamic> map) {
     return GoalModel(
       id: map['id'] as int?,

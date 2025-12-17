@@ -103,6 +103,7 @@
   "goals.form.wallet_hint": "سيتم استخدام عملتها لحساب تقدم الهدف.",
   "goals.form.wallet_missing": "أضف محفظة كي تتمكن من إنشاء هدف ادخار.",
   "goals.form.wallet_add": "إدارة المحافظ",
+  "goals.form.currency_label": "عملة الهدف",
   "goals.card.wallet": "المحفظة: @name",
   "goals.card.currency": "العملة: @code",
   "goals.wallet.pending": "سيتم إنشاء محفظة خاصة عند اكتمال الهدف.",
@@ -113,6 +114,52 @@
   "goals.contribution.submit": "حفظ المساهمة",
   "goals.contribution.success": "تم تسجيل المساهمة لهذا الهدف.",
   "goals.contribution.invalid": "أدخل مبلغًا صحيحًا قبل الحفظ.",
+  "goals.details.title": "تفاصيل الهدف",
+  "goals.details.info.tooltip": "شرح البيانات",
+  "goals.details.info.title": "كيف تقرأ هذه الصفحة؟",
+  "goals.details.info.body": "يتم جمع كل مساهمة تسجلها في هذا الهدف، مع إبراز موعد الاستحقاق، المبلغ المستهدف، والمساهمات السابقة. يساعدك المنحنى على معرفة سرعة الادخار، بينما يعرض سجل الحركات التفاصيل الدقيقة لكل عملية.",
+  "goals.details.goal_missing": "لم نعثر على هذا الهدف. ارجع إلى قائمة الأهداف وحاول مرة أخرى.",
+  "goals.details.deadline": "الموعد النهائي: @date",
+  "goals.details.target": "المبلغ المستهدف",
+  "goals.details.current": "المبلغ المجمّع",
+  "goals.details.remaining": "المتبقي للإنجاز",
+  "goals.details.contributions": "عدد المساهمات",
+  "goals.details.chart.title": "منحنى التقدم",
+  "goals.details.chart.empty": "لم تبدأ أي مساهمة بعد، أضف أول إيداع لترى منحنى تقدمك.",
+  "goals.details.timeline.title": "سجل الحركات",
+  "goals.details.timeline.count": "@count حركة",
+  "goals.details.timeline.empty": "لا توجد حركات محفوظة لهذا الهدف حتى الآن.\nابدأ أول إيداع لتظهر هنا.",
+  "goals.archived.title": "الأهداف المؤرشفة",
+  "goals.archived.subtitle": "@count هدف مكتمل",
+  "goals.archived.amount": "المبلغ المحول: @amount • تاريخ الهدف: @date",
+  "goals.archived.view": "عرض التفاصيل",
+  "goals.transfer.button": "تحويل المدخرات",
+  "goals.transfer.title": "تحويل المدخرات",
+  "goals.transfer.subtitle": "اختر المحفظة التي تريد تحويل مبلغ الهدف إليها.",
+  "goals.transfer.wallet_balance": "الرصيد الحالي: @amount @currency",
+  "goals.transfer.confirm": "تحويل الآن",
+  "goals.transfer.success": "تم تحويل المدخرات بنجاح.",
+  "goals.transfer.error": "تعذر تحويل المدخرات، حاول مرة أخرى.",
+  "goals.transfer.no_wallets": "لا توجد محافظ متاحة للتحويل. أضف محفظة جديدة أولاً.",
+  "goals.transfer.archived": "تم تحويل مدخرات هذا الهدف. يمكنك الاطلاع على تفاصيله فقط.",
+  "goals.transfer.transaction_note": "تحويل مدخرات الهدف @name",
+  "goals.insights.title": "متابعة الأهداف",
+  "goals.insights.subtitle": "رؤية سريعة للأهداف النشطة والمؤرشفة",
+  "goals.insights.manage": "إدارة",
+  "goals.insights.active": "@count هدف نشط",
+  "goals.insights.archived": "@count هدف مؤرشف",
+  "goals.insights.remaining_currency": "المتبقي لتحقيق الأهداف (حسب العملة)",
+  "goals.insights.archived_currency": "المبلغ المحول إلى المحافظ (حسب العملة)",
+  "goals.insights.highlights": "أقرب الأهداف إلى الاكتمال",
+  "goals.insights.no_active": "لا توجد أهداف نشطة الآن. أضف هدفًا جديدًا لتظهر هنا.",
+  "goals.insights.deadline": "الموعد: @date",
+  "goals.insights.progress": "تم إنجاز @percent%",
+  "goals.celebration.title": "أحسنت! الهدف اكتمل 🎉",
+  "goals.celebration.subtitle": "لقد أنهيت هدف \"@name\" بنجاح.",
+  "goals.celebration.message": "تم حفظ @amount بالكامل في محفظتك الخاصة بالادخار. استمتع بالإنجاز واستعد للخطوة التالية.",
+  "goals.celebration.button.home": "العودة للرئيسية",
+  "goals.celebration.button.goals": "مشاهدة الأهداف",
+  "goals.celebration.button.open": "عرض صفحة التهنئة",
   "dashboard.goals.title": "أهداف الادخار",
   "dashboard.goals.subtitle": "راقب هدفك الأقرب وابقَ على المسار الصحيح.",
   "dashboard.goals.progress": "تم إنجاز @percent%",

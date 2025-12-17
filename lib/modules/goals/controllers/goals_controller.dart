@@ -19,6 +19,7 @@ class GoalsController extends GetxController {
   final nameController = TextEditingController();
   final amountController = TextEditingController();
   final deadline = DateTime.now().add(const Duration(days: 30)).obs;
+  final currencyController = TextEditingController(text: 'SAR');
 
   @override
   void onInit() {
@@ -45,11 +46,16 @@ class GoalsController extends GetxController {
   Future<void> fetchWallets() async {
     final loaded = await _repository.fetchWallets(includeGoal: true);
     allWallets.assignAll(loaded);
+    _applyDefaultCurrency();
   }
 
   WalletModel? walletForId(int? id) {
     if (id == null) return null;
     return allWallets.firstWhereOrNull((wallet) => wallet.id == id);
+  }
+
+  GoalModel? goalById(int id) {
+    return goals.firstWhereOrNull((item) => item.id == id);
   }
 
   Future<void> createGoal() async {
@@ -62,9 +68,11 @@ class GoalsController extends GetxController {
       Get.snackbar('common.alert'.tr, 'goals.form.validation.amount'.tr);
       return;
     }
-    final referenceWallet = allWallets
-        .firstWhereOrNull((wallet) => !wallet.isGoal);
-    final currency = referenceWallet?.currency ?? 'SAR';
+    final referenceWallet =
+        allWallets.firstWhereOrNull((wallet) => !wallet.isGoal);
+    final selectedCurrency = currencyController.text.trim();
+    final currency =
+        selectedCurrency.isNotEmpty ? selectedCurrency : referenceWallet?.currency ?? 'SAR';
     final goal = GoalModel(
       name: nameController.text,
       targetAmount: parsedAmount,
@@ -78,15 +86,16 @@ class GoalsController extends GetxController {
     await fetchWallets();
     nameController.clear();
     amountController.clear();
+    currencyController.text = currency;
   }
 
-  Future<void> addContribution(
+  Future<bool> addContribution(
     GoalModel goal,
     double amount, {
     String? note,
   }) async {
     if (goal.id == null || amount <= 0) {
-      return;
+      return false;
     }
     await _repository.insertGoalContribution(
       GoalContributionModel(
@@ -98,16 +107,42 @@ class GoalsController extends GetxController {
     );
     await fetchGoals();
     await fetchWallets();
+    final updated = goalById(goal.id!);
+    return (updated?.progress ?? 0) >= 1;
   }
 
   Future<List<GoalContributionModel>> loadContributions(int goalId) {
     return _repository.fetchGoalContributions(goalId);
   }
 
+  Future<bool> transferGoalToWallet(
+    GoalModel goal,
+    WalletModel wallet,
+  ) async {
+    if (goal.id == null || wallet.id == null) return false;
+    final success =
+        await _repository.transferGoalSavings(goal.id!, wallet.id!);
+    if (success) {
+      await fetchGoals();
+      await fetchWallets();
+    }
+    return success;
+  }
+
   @override
   void onClose() {
     nameController.dispose();
     amountController.dispose();
+    currencyController.dispose();
     super.onClose();
+  }
+
+  void _applyDefaultCurrency() {
+    if (currencyController.text.trim().isNotEmpty) return;
+    final referenceWallet =
+        allWallets.firstWhereOrNull((wallet) => !wallet.isGoal);
+    if (referenceWallet != null) {
+      currencyController.text = referenceWallet.currency;
+    }
   }
 }

@@ -633,7 +633,9 @@ class _GoalsSummaryCard extends StatelessWidget {
     final goalsController = Get.find<GoalsController>();
     return Obx(
       () {
-        final goals = goalsController.goals.toList();
+        final goals = goalsController.goals
+            .where((goal) => goal.walletId == null)
+            .toList();
         final theme = Theme.of(context);
         if (goals.isEmpty) {
           return _EmptyStateCard(

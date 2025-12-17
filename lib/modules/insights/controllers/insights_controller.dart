@@ -5,6 +5,7 @@ import '../../../core/services/network_service.dart';
 import '../../../core/services/settings_service.dart';
 import '../../../data/models/transaction_model.dart';
 import '../../../data/models/wallet_model.dart';
+import '../../../data/models/goal_model.dart';
 import '../../../data/repositories/local_expense_repository.dart';
 import '../../../data/services/ai_insight_service.dart';
 import '../../../data/services/gemini_insight_service.dart';
@@ -32,6 +33,7 @@ class InsightsController extends GetxController {
   final walletInsights = <WalletInsight>[].obs;
   final savingsReports = <SavingsReport>[].obs;
   final cashflowSummaries = <WalletCashflow>[].obs;
+  final goalInsights = Rxn<GoalsInsightData>();
   final isOnline = true.obs;
   final isLoading = false.obs;
   final aiFeatureEnabled = false.obs;
@@ -293,6 +295,64 @@ class InsightsController extends GetxController {
     }
     savingsReports.assignAll(reports);
   }
+
+  Future<void> _buildGoalInsights() async {
+    final goals = await _repository.fetchGoals();
+    if (goals.isEmpty) {
+      goalInsights.value = null;
+      return;
+    }
+    final active = <GoalModel>[];
+    final archived = <GoalModel>[];
+    for (final goal in goals) {
+      if (goal.walletId == null) {
+        active.add(goal);
+      } else {
+        archived.add(goal);
+      }
+    }
+    final remainingByCurrency = <String, double>{};
+    for (final goal in active) {
+      final currency = goal.currency ?? 'SAR';
+      final remaining = (goal.targetAmount - goal.currentAmount)
+          .clamp(0, double.infinity)
+          .toDouble();
+      remainingByCurrency.update(
+        currency,
+        (value) => value + remaining,
+        ifAbsent: () => remaining,
+      );
+    }
+    final archivedByCurrency = <String, double>{};
+    for (final goal in archived) {
+      final currency = goal.currency ?? 'SAR';
+      archivedByCurrency.update(
+        currency,
+        (value) => value + goal.currentAmount,
+        ifAbsent: () => goal.currentAmount,
+      );
+    }
+    active.sort((a, b) => a.deadline.compareTo(b.deadline));
+    final highlights = active.take(3).map((goal) {
+      final remaining = (goal.targetAmount - goal.currentAmount)
+          .clamp(0, double.infinity)
+          .toDouble();
+      return GoalHighlight(
+        name: goal.name,
+        progress: goal.progress,
+        deadline: goal.deadline,
+        currency: goal.currency ?? 'SAR',
+        remaining: remaining,
+      );
+    }).toList();
+    goalInsights.value = GoalsInsightData(
+      activeCount: active.length,
+      archivedCount: archived.length,
+      remainingByCurrency: remainingByCurrency,
+      archivedByCurrency: archivedByCurrency,
+      highlights: highlights,
+    );
+  }
 }
 
 class WalletInsight {
@@ -355,4 +415,36 @@ class WalletCashflow {
   final double projectedNet;
 
   double get net => income - expense;
+}
+
+class GoalsInsightData {
+  GoalsInsightData({
+    required this.activeCount,
+    required this.archivedCount,
+    required this.remainingByCurrency,
+    required this.archivedByCurrency,
+    required this.highlights,
+  });
+
+  final int activeCount;
+  final int archivedCount;
+  final Map<String, double> remainingByCurrency;
+  final Map<String, double> archivedByCurrency;
+  final List<GoalHighlight> highlights;
+}
+
+class GoalHighlight {
+  GoalHighlight({
+    required this.name,
+    required this.progress,
+    required this.deadline,
+    required this.currency,
+    required this.remaining,
+  });
+
+  final String name;
+  final double progress;
+  final DateTime deadline;
+  final String currency;
+  final double remaining;
 }

@@ -3,6 +3,8 @@ import 'package:get/get.dart';
 import '../modules/bills/views/bills_view.dart';
 import '../modules/dashboard/views/dashboard_view.dart';
 import '../modules/goals/views/goals_view.dart';
+import '../modules/goals/views/goal_details_view.dart';
+import '../modules/goals/views/goal_celebration_view.dart';
 import '../modules/insights/views/insights_view.dart';
 import '../modules/onboarding/views/onboarding_view.dart';
 import '../modules/receipts/views/receipts_view.dart';
@@ -28,6 +30,14 @@ class AppPages {
     ),
     GetPage(name: AppRoutes.wallets, page: () => const WalletsView()),
     GetPage(name: AppRoutes.goals, page: () => const GoalsView()),
+    GetPage(
+      name: AppRoutes.goalDetails,
+      page: () => const GoalDetailsView(),
+    ),
+    GetPage(
+      name: AppRoutes.goalCelebration,
+      page: () => const GoalCelebrationView(),
+    ),
     GetPage(name: AppRoutes.insights, page: () => const InsightsView()),
     GetPage(name: AppRoutes.receipts, page: () => const ReceiptsView()),
     GetPage(name: AppRoutes.settings, page: () => const SettingsView()),
