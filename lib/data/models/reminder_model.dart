@@ -13,6 +13,22 @@ class ReminderModel {
     required this.time,
   });
 
+  ReminderModel copyWith({
+    int? id,
+    int? userId,
+    String? message,
+    DateTime? date,
+    String? time,
+  }) {
+    return ReminderModel(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      message: message ?? this.message,
+      date: date ?? this.date,
+      time: time ?? this.time,
+    );
+  }
+
   factory ReminderModel.fromMap(Map<String, dynamic> map) {
     return ReminderModel(
       id: map['id'] as int?,

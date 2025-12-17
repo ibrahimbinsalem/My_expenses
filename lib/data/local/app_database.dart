@@ -18,7 +18,12 @@ class AppDatabase {
     final directory = await getApplicationDocumentsDirectory();
     final dbPath = join(directory.path, 'my_expenses.db');
 
-    return openDatabase(dbPath, version: 1, onCreate: _onCreate);
+    return openDatabase(
+      dbPath,
+      version: 5,
+      onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
+    );
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -26,7 +31,8 @@ class AppDatabase {
       CREATE TABLE users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
-        created_at TEXT NOT NULL
+        created_at TEXT NOT NULL,
+        avatar_index INTEGER NOT NULL DEFAULT 0
       );
     ''');
 
@@ -89,5 +95,84 @@ class AppDatabase {
         FOREIGN KEY (user_id) REFERENCES users (id)
       );
     ''');
+
+    await db.execute('''
+      CREATE TABLE currencies (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        code TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        is_default INTEGER NOT NULL DEFAULT 0
+      );
+    ''');
+
+    await db.execute('''
+      CREATE TABLE user_insights (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        content TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users (id)
+      );
+    ''');
+
+    await db.execute('''
+      CREATE TABLE notifications_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        type TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        is_read INTEGER NOT NULL DEFAULT 0
+      );
+    ''');
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS currencies (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          code TEXT NOT NULL UNIQUE,
+          name TEXT NOT NULL,
+          is_default INTEGER NOT NULL DEFAULT 0
+        );
+      ''');
+    }
+    if (oldVersion < 3) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS user_insights (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          content TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          FOREIGN KEY (user_id) REFERENCES users (id)
+        );
+      ''');
+    }
+    if (oldVersion < 4) {
+      final columns = await db.rawQuery(
+        "PRAGMA table_info('users')",
+      );
+      final hasAvatarColumn = columns.any(
+        (column) => column['name'] == 'avatar_index',
+      );
+      if (!hasAvatarColumn) {
+        await db.execute(
+          "ALTER TABLE users ADD COLUMN avatar_index INTEGER NOT NULL DEFAULT 0",
+        );
+      }
+    }
+    if (oldVersion < 5) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS notifications_log (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          title TEXT NOT NULL,
+          body TEXT NOT NULL,
+          type TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          is_read INTEGER NOT NULL DEFAULT 0
+        );
+      ''');
+    }
   }
 }

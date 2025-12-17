@@ -7,11 +7,13 @@
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:my_expenses/core/localization/app_translations.dart';
 import 'package:my_expenses/main.dart';
 
 void main() {
   testWidgets('App renders dashboard title', (WidgetTester tester) async {
-    await tester.pumpWidget(const MyExpensesApp());
+    final translations = AppTranslations({'ar': {}, 'en': {}});
+    await tester.pumpWidget(MyExpensesApp(translations: translations));
     expect(find.text('مصاريفي الذكي'), findsOneWidget);
   });
 }

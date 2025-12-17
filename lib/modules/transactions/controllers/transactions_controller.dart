@@ -28,7 +28,6 @@ class TransactionsController extends GetxController {
   final wallets = <WalletModel>[].obs;
   final selectedCategoryId = RxnInt();
   final selectedWalletId = RxnInt();
-  final selectedType = TransactionType.expense.obs;
   final selectedDate = DateTime.now().obs;
 
   @override
@@ -62,7 +61,7 @@ class TransactionsController extends GetxController {
         walletId: selectedWalletId.value!,
         categoryId: selectedCategoryId.value!,
         amount: double.parse(amountController.text),
-        type: selectedType.value,
+        type: TransactionType.expense,
         note: noteController.text,
         date: selectedDate.value,
       );

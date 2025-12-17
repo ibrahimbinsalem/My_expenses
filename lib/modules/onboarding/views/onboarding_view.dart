@@ -3,8 +3,9 @@ import 'package:get/get.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/world_currencies.dart';
+import '../../../core/utils/currency_utils.dart';
 import '../controllers/onboarding_controller.dart';
-import '../../../widgets/currency_picker_field.dart';
 
 class OnboardingView extends GetView<OnboardingController> {
   const OnboardingView({super.key});
@@ -30,15 +31,13 @@ class OnboardingView extends GetView<OnboardingController> {
                   onPageChanged: controller.onPageChanged,
                   children: const [
                     _IntroSlide(
-                      title: 'تحكم كامل في مصاريفك',
-                      description:
-                          'كل عملية، كل محفظة، وكل هدف محفوظ محليًا بجهازك وبدون إنترنت.',
+                      titleKey: 'onboarding.slide1.title',
+                      descriptionKey: 'onboarding.slide1.description',
                       icon: Icons.security,
                     ),
                     _IntroSlide(
-                      title: 'مساعد ذكي يعمل دون اتصال',
-                      description:
-                          'نصائح ادخار وتحليلات فورية لتعرف أين تذهب ميزانيتك.',
+                      titleKey: 'onboarding.slide2.title',
+                      descriptionKey: 'onboarding.slide2.description',
                       icon: Icons.auto_awesome,
                     ),
                     _SetupSlide(),
@@ -64,8 +63,11 @@ class OnboardingView extends GetView<OnboardingController> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Obx(
-                      () => Row(
+                    Obx(() {
+                      final isLastPage = controller.currentPage.value >= 2;
+                      final isProcessing = controller.isSaving.value;
+                      final canSubmit = controller.isSetupValid.value;
+                      return Row(
                         children: [
                           if (controller.currentPage.value < 2)
                             TextButton(
@@ -76,7 +78,7 @@ class OnboardingView extends GetView<OnboardingController> {
                                   curve: Curves.easeInOut,
                                 );
                               },
-                              child: const Text('تخطي'),
+                              child: Text('common.skip'.tr),
                             )
                           else
                             const SizedBox(width: 68),
@@ -92,19 +94,19 @@ class OnboardingView extends GetView<OnboardingController> {
                                 borderRadius: BorderRadius.circular(16),
                               ),
                             ),
-                            onPressed: controller.currentPage.value < 2
-                                ? () {
+                            onPressed: isLastPage
+                                ? (isProcessing || !canSubmit
+                                      ? null
+                                      : controller.completeSetup)
+                                : () {
                                     controller.pageController.nextPage(
                                       duration: const Duration(
                                         milliseconds: 300,
                                       ),
                                       curve: Curves.easeInOut,
                                     );
-                                  }
-                                : controller.isSaving.value
-                                ? null
-                                : controller.completeSetup,
-                            child: controller.isSaving.value
+                                  },
+                            child: isProcessing
                                 ? const SizedBox(
                                     height: 20,
                                     width: 20,
@@ -114,17 +116,17 @@ class OnboardingView extends GetView<OnboardingController> {
                                     ),
                                   )
                                 : Text(
-                                    controller.currentPage.value < 2
-                                        ? 'التالي'
-                                        : 'ابدأ بتنظيم مصاريفي',
+                                    isLastPage
+                                        ? 'ابدأ بتنظيم مصاريفي'.tr
+                                        : 'common.next'.tr,
                                     style: const TextStyle(
                                       color: Colors.black87,
                                     ),
                                   ),
                           ),
                         ],
-                      ),
-                    ),
+                      );
+                    }),
                     const SizedBox(height: 24),
                   ],
                 ),
@@ -139,13 +141,13 @@ class OnboardingView extends GetView<OnboardingController> {
 
 class _IntroSlide extends StatelessWidget {
   const _IntroSlide({
-    required this.title,
-    required this.description,
+    required this.titleKey,
+    required this.descriptionKey,
     required this.icon,
   });
 
-  final String title;
-  final String description;
+  final String titleKey;
+  final String descriptionKey;
   final IconData icon;
 
   @override
@@ -159,7 +161,7 @@ class _IntroSlide extends StatelessWidget {
           Icon(icon, color: AppColors.secondary, size: 90),
           const SizedBox(height: 24),
           Text(
-            title,
+            titleKey.tr,
             textAlign: TextAlign.center,
             style: const TextStyle(
               fontSize: 28,
@@ -169,7 +171,7 @@ class _IntroSlide extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            description,
+            descriptionKey.tr,
             textAlign: TextAlign.center,
             style: const TextStyle(color: Colors.white70, fontSize: 16),
           ),
@@ -205,9 +207,11 @@ class _SetupSlide extends GetView<OnboardingController> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'لنجهز حسابك',
-                      style: TextStyle(
+                    _InitialCurrencySelector(controller: controller),
+                    const SizedBox(height: 12),
+                    Text(
+                      'لنجهز حسابك'.tr,
+                      style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
                       ),
@@ -215,36 +219,21 @@ class _SetupSlide extends GetView<OnboardingController> {
                     const SizedBox(height: 16),
                     TextField(
                       controller: controller.nameController,
-                      decoration: const InputDecoration(
-                        labelText: 'اسم المستخدم',
-                        prefixIcon: Icon(Icons.person),
+                      decoration: InputDecoration(
+                        labelText: 'اسم المستخدم'.tr,
+                        prefixIcon: const Icon(Icons.person),
                       ),
                     ),
                     const SizedBox(height: 12),
-                    TextField(
-                      controller: controller.walletNameController,
-                      decoration: const InputDecoration(
-                        labelText: 'اسم المحفظة الأولى',
-                        prefixIcon: Icon(Icons.wallet),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: controller.startingBalanceController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'الرصيد الابتدائي',
-                        prefixIcon: Icon(Icons.savings),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    CurrencyPickerField(
-                      controller: controller.currencyController,
+                    Text(
+                      'ستقوم بإنشاء محافظك وإدخال أرصدتك بعد الدخول للتطبيق من قسم المحافظ.'
+                          .tr,
+                      style: const TextStyle(color: Colors.black54),
                     ),
                     const SizedBox(height: 20),
-                    const Text(
-                      'اختر الفئات التي تناسبك',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                    Text(
+                      'اختر الفئات التي تناسبك'.tr,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 12),
                     Obx(
@@ -259,7 +248,9 @@ class _SetupSlide extends GetView<OnboardingController> {
                             final isSelected = controller.selectedCategories
                                 .contains(index);
                             return ChoiceChip(
-                              label: Text(category['name']! as String),
+                              label: Text(
+                                (category['name']! as String).tr,
+                              ),
                               selected: isSelected,
                               onSelected: (_) =>
                                   controller.toggleCategory(index),
@@ -282,5 +273,242 @@ class _SetupSlide extends GetView<OnboardingController> {
         );
       },
     );
+  }
+}
+
+class _InitialCurrencySelector extends StatelessWidget {
+  const _InitialCurrencySelector({required this.controller});
+
+  final OnboardingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'حدد العملات التي تريد استخدامها'.tr,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Obx(() {
+              final currencies = controller.currencies;
+              if (currencies.isEmpty) {
+                return Text(
+                  'لم تحدد أي عملة بعد. اختر من القائمة العالمية لبدء الاستخدام.'
+                      .tr,
+                  style: const TextStyle(color: Colors.black54),
+                );
+              }
+              return Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: currencies
+                    .map(
+                      (currency) => Chip(
+                        backgroundColor: AppColors.secondary.withValues(
+                          alpha: 0.2,
+                        ),
+                        label: Text('${currency.name} (${currency.code})'),
+                        deleteIcon: const Icon(Icons.close),
+                        onDeleted: () => controller.removeCurrency(currency),
+                      ),
+                    )
+                    .toList(),
+              );
+            }),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => _showWorldCurrencyPicker(context, controller),
+              icon: const Icon(Icons.public),
+              label: Text('اختيار العملات من العالم'.tr),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> _showWorldCurrencyPicker(
+  BuildContext context,
+  OnboardingController controller,
+) async {
+  final existingCodes = controller.currencies
+      .map((currency) => currency.code.toUpperCase())
+      .toSet();
+  final available = worldCurrencies
+      .where(
+        (currency) =>
+            !existingCodes.contains((currency['code'] as String).toUpperCase()),
+      )
+      .toList();
+  if (available.isEmpty) {
+    Get.snackbar(
+      'common.alert'.tr,
+      'جميع العملات متاحة بالفعل في حسابك.'.tr,
+      snackPosition: SnackPosition.BOTTOM,
+    );
+    return;
+  }
+
+  final selected = <String>{};
+  final searchController = TextEditingController();
+
+  try {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+          final query = searchController.text.toLowerCase();
+          final filtered = available.where((currency) {
+            final nameAr =
+                (currency['nameAr'] ?? currency['name'] ?? '').toLowerCase();
+            final nameEn =
+                (currency['nameEn'] ?? currency['name'] ?? '').toLowerCase();
+            final code = (currency['code'] as String).toLowerCase();
+            return nameAr.contains(query) ||
+                nameEn.contains(query) ||
+                code.contains(query);
+          }).toList();
+
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 24,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                Text(
+                  'اختر العملات'.tr,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: searchController,
+                  decoration: InputDecoration(
+                    labelText: 'common.currency_search'.tr,
+                    prefixIcon: const Icon(Icons.search),
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: 12),
+                if (filtered.isEmpty)
+                  Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text('common.no_results'.tr),
+                  )
+                else
+                  Flexible(
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: filtered.length,
+                      itemBuilder: (context, index) {
+                        final currency = filtered[index];
+                        final code = currency['code'] as String;
+                        final name = localizedCurrencyName(
+                          currency.cast<String, String>(),
+                        );
+                        final isSelected = selected.contains(code);
+                        return CheckboxListTile(
+                          value: isSelected,
+                          onChanged: (value) {
+                            setState(() {
+                              if (value == true) {
+                                selected.add(code);
+                              } else {
+                                selected.remove(code);
+                              }
+                            });
+                          },
+                          title: Text(name),
+                          subtitle: Text(code),
+                        );
+                      },
+                    ),
+                  ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: Text('common.cancel'.tr),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: selected.isEmpty
+                            ? null
+                            : () async {
+                                final navigator = Navigator.of(context);
+                                final selections = available
+                                    .where(
+                                      (currency) => selected.contains(
+                                        currency['code'] as String,
+                                      ),
+                                    )
+                                    .map(
+                                      (currency) => {
+                                        'code': currency['code'] as String,
+                                        'name': localizedCurrencyName(
+                                          currency.cast<String, String>(),
+                                        ),
+                                      },
+                                    )
+                                    .toList();
+                                final success = await controller
+                                    .addInitialCurrencies(selections);
+                                navigator.pop();
+                                if (success) {
+                                  Get.snackbar(
+                                    'common.added'.tr,
+                                    'تم حفظ العملات المختارة.'.tr,
+                                    snackPosition: SnackPosition.BOTTOM,
+                                  );
+                                } else {
+                                  Get.snackbar(
+                                    'common.alert'.tr,
+                                    'لم يتم إضافة أي عملة جديدة.'.tr,
+                                    snackPosition: SnackPosition.BOTTOM,
+                                  );
+                                }
+                              },
+                        child: Text('حفظ العملات'.tr),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+          },
+        );
+      },
+    );
+  } finally {
+    searchController.dispose();
   }
 }

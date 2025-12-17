@@ -12,7 +12,7 @@ class CategorySettingsView extends GetView<SettingsController> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('إدارة الفئات')),
+      appBar: AppBar(title: Text('إدارة الفئات'.tr)),
       body: Obx(
         () => ListView(
           padding: const EdgeInsets.all(20),
@@ -22,7 +22,7 @@ class CategorySettingsView extends GetView<SettingsController> {
             if (controller.isLoading.value && controller.categories.isEmpty)
               const Center(child: CircularProgressIndicator())
             else if (controller.categories.isEmpty)
-              const Center(child: Text('لا توجد فئات حتى الآن'))
+              Center(child: Text('لا توجد فئات حتى الآن'.tr))
             else
               ...controller.categories.map(
                 (category) => Card(
@@ -36,7 +36,8 @@ class CategorySettingsView extends GetView<SettingsController> {
                     ),
                     title: Text(category.name),
                     subtitle: Text(
-                      categoryIconLabels[category.icon] ?? 'فئة مخصصة',
+                      categoryIconLabels[category.icon]?.tr ??
+                          'فئة مخصصة'.tr,
                       style: TextStyle(color: Colors.grey.shade600),
                     ),
                     trailing: PopupMenuButton<String>(
@@ -48,13 +49,13 @@ class CategorySettingsView extends GetView<SettingsController> {
                         }
                       },
                       itemBuilder: (context) => [
-                        const PopupMenuItem(
+                        PopupMenuItem(
                           value: 'edit',
-                          child: Text('تعديل'),
+                          child: Text('تعديل'.tr),
                         ),
-                        const PopupMenuItem(
+                        PopupMenuItem(
                           value: 'delete',
-                          child: Text('حذف'),
+                          child: Text('حذف'.tr),
                         ),
                       ],
                     ),
@@ -101,10 +102,10 @@ void _showEditCategorySheet(
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: const [
+                  children: [
                     Text(
-                      'تعديل الفئة',
-                      style: TextStyle(
+                      'تعديل الفئة'.tr,
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
@@ -114,14 +115,14 @@ void _showEditCategorySheet(
                 const SizedBox(height: 12),
                 TextField(
                   controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'اسم الفئة',
-                    prefixIcon: Icon(Icons.edit_outlined),
+                  decoration: InputDecoration(
+                    labelText: 'اسم الفئة'.tr,
+                    prefixIcon: const Icon(Icons.edit_outlined),
                   ),
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'لون الفئة',
+                  'لون الفئة'.tr,
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 8),
@@ -152,7 +153,7 @@ void _showEditCategorySheet(
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'أيقونة الفئة',
+                  'أيقونة الفئة'.tr,
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 8),
@@ -160,7 +161,7 @@ void _showEditCategorySheet(
                   key: ValueKey(tempIcon),
                   initialValue: tempIcon.isEmpty ? null : tempIcon,
                   decoration: InputDecoration(
-                    labelText: 'أيقونة',
+                    labelText: 'أيقونة'.tr,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
@@ -176,7 +177,9 @@ void _showEditCategorySheet(
                                 color: AppColors.primary,
                               ),
                               const SizedBox(width: 8),
-                              Text(categoryIconLabels[option] ?? option),
+                              Text(
+                                categoryIconLabels[option]?.tr ?? option.tr,
+                              ),
                             ],
                           ),
                         ),
@@ -203,7 +206,7 @@ void _showEditCategorySheet(
                       navigator.pop();
                     },
                     icon: const Icon(Icons.save_outlined),
-                    label: const Text('حفظ التعديلات'),
+                    label: Text('حفظ التعديلات'.tr),
                   ),
                 ),
               ],
@@ -229,20 +232,21 @@ class _CategoryForm extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'أضف فئة جديدة',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Text(
+              'أضف فئة جديدة'.tr,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: controller.categoryNameController,
-              decoration: const InputDecoration(
-                labelText: 'اسم الفئة',
-                prefixIcon: Icon(Icons.label),
+              decoration: InputDecoration(
+                labelText: 'اسم الفئة'.tr,
+                prefixIcon: const Icon(Icons.label),
               ),
             ),
             const SizedBox(height: 12),
-            Text('اختر اللون', style: Theme.of(context).textTheme.bodyMedium),
+            Text('اختر اللون'.tr,
+                style: Theme.of(context).textTheme.bodyMedium),
             const SizedBox(height: 8),
             Obx(
               () => Wrap(
@@ -272,7 +276,8 @@ class _CategoryForm extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            Text('اختر الرمز', style: Theme.of(context).textTheme.bodyMedium),
+            Text('اختر الرمز'.tr,
+                style: Theme.of(context).textTheme.bodyMedium),
             const SizedBox(height: 8),
             Obx(
               () => DropdownButtonFormField<String>(
@@ -281,7 +286,7 @@ class _CategoryForm extends StatelessWidget {
                     ? null
                     : controller.selectedIcon.value,
                 decoration: InputDecoration(
-                  labelText: 'أيقونة الفئة',
+                  labelText: 'أيقونة الفئة'.tr,
                   prefixIcon: controller.selectedIcon.value.isEmpty
                       ? const Icon(Icons.category_outlined)
                       : Icon(
@@ -318,7 +323,7 @@ class _CategoryForm extends StatelessWidget {
                             ),
                             const SizedBox(width: 12),
                             Text(
-                              categoryIconLabels[option] ?? option,
+                              categoryIconLabels[option]?.tr ?? option.tr,
                               style: Theme.of(context).textTheme.bodyMedium,
                             ),
                           ],
@@ -337,7 +342,7 @@ class _CategoryForm extends StatelessWidget {
               child: ElevatedButton.icon(
                 onPressed: controller.addCategory,
                 icon: const Icon(Icons.add),
-                label: const Text('إضافة الفئة'),
+                label: Text('إضافة الفئة'.tr),
               ),
             ),
           ],

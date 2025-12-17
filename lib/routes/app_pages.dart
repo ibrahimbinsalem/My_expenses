@@ -6,7 +6,10 @@ import '../modules/insights/views/insights_view.dart';
 import '../modules/onboarding/views/onboarding_view.dart';
 import '../modules/receipts/views/receipts_view.dart';
 import '../modules/settings/views/category_settings_view.dart';
+import '../modules/settings/views/currency_settings_view.dart';
+import '../modules/settings/views/reminders_settings_view.dart';
 import '../modules/settings/views/settings_view.dart';
+import '../modules/notifications/views/notifications_view.dart';
 import '../modules/transactions/views/add_transaction_view.dart';
 import '../modules/wallets/views/wallets_view.dart';
 import 'app_routes.dart';
@@ -29,6 +32,18 @@ class AppPages {
     GetPage(
       name: AppRoutes.categorySettings,
       page: () => const CategorySettingsView(),
+    ),
+    GetPage(
+      name: AppRoutes.currencySettings,
+      page: () => const CurrencySettingsView(),
+    ),
+    GetPage(
+      name: AppRoutes.remindersSettings,
+      page: () => const RemindersSettingsView(),
+    ),
+    GetPage(
+      name: AppRoutes.notifications,
+      page: () => const NotificationsView(),
     ),
   ];
 }

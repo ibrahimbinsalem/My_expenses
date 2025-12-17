@@ -1,9 +1,11 @@
+import 'package:get/get.dart';
+
 /// Placeholder for offline speech-to-text parsing.
 class VoiceEntryService {
   Future<String> transcribe(String audioPath) async {
     // TODO: connect a local STT like Vosk.
     await Future<void>.delayed(const Duration(milliseconds: 300));
-    return 'سجل 150 مطاعم';
+    return 'voice.sample_entry'.tr;
   }
 
   /// Very simple intent parser to extract amount + keyword from text.

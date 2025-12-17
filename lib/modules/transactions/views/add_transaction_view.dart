@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/formatters.dart';
-import '../../../data/models/transaction_model.dart';
 import '../../../routes/app_routes.dart';
 import '../controllers/transactions_controller.dart';
 
@@ -13,7 +11,7 @@ class AddTransactionView extends GetView<TransactionsController> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('إضافة عملية')),
+      appBar: AppBar(title: Text('إضافة عملية'.tr)),
       body: Form(
         key: controller.formKey,
         child: Obx(
@@ -22,10 +20,8 @@ class AddTransactionView extends GetView<TransactionsController> {
             children: [
               _AmountField(controller: controller),
               const SizedBox(height: 16),
-              _TypeSelector(controller: controller),
-              const SizedBox(height: 16),
               _DropdownField(
-                label: 'المحفظة',
+                label: 'المحفظة'.tr,
                 value: controller.selectedWalletId.value,
                 items: controller.wallets
                     .map(
@@ -44,12 +40,12 @@ class AddTransactionView extends GetView<TransactionsController> {
                   padding: const EdgeInsets.only(top: 8),
                   child: TextButton(
                     onPressed: () => Get.toNamed(AppRoutes.wallets),
-                    child: const Text('أضف محفظة جديدة من صفحة المحافظ'),
+                    child: Text('أضف محفظة جديدة من صفحة المحافظ'.tr),
                   ),
                 ),
               const SizedBox(height: 16),
               _DropdownField(
-                label: 'الفئة',
+                label: 'الفئة'.tr,
                 value: controller.selectedCategoryId.value,
                 items: controller.categories
                     .map(
@@ -67,7 +63,7 @@ class AddTransactionView extends GetView<TransactionsController> {
                   padding: const EdgeInsets.only(top: 8),
                   child: TextButton(
                     onPressed: () => Get.toNamed(AppRoutes.settings),
-                    child: const Text('أضف فئات مخصصة من صفحة الإعدادات'),
+                    child: Text('أضف فئات مخصصة من صفحة الإعدادات'.tr),
                   ),
                 ),
               const SizedBox(height: 16),
@@ -75,7 +71,7 @@ class AddTransactionView extends GetView<TransactionsController> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: controller.noteController,
-                decoration: const InputDecoration(labelText: 'ملاحظة'),
+                decoration: InputDecoration(labelText: 'ملاحظة'.tr),
               ),
               const SizedBox(height: 20),
               Row(
@@ -83,7 +79,7 @@ class AddTransactionView extends GetView<TransactionsController> {
                   Expanded(
                     child: OutlinedButton.icon(
                       icon: const Icon(Icons.camera_alt_outlined),
-                      label: const Text('فاتورة'),
+                      label: Text('فاتورة'.tr),
                       onPressed: () =>
                           controller.autofillFromReceipt('local-path'),
                     ),
@@ -92,7 +88,7 @@ class AddTransactionView extends GetView<TransactionsController> {
                   Expanded(
                     child: OutlinedButton.icon(
                       icon: const Icon(Icons.mic_none_outlined),
-                      label: const Text('صوت'),
+                      label: Text('صوت'.tr),
                       onPressed: () =>
                           controller.handleVoiceCommand('local-audio'),
                     ),
@@ -110,7 +106,7 @@ class AddTransactionView extends GetView<TransactionsController> {
                         width: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('حفظ العملية'),
+                    : Text('حفظ العملية'.tr),
               ),
             ],
           ),
@@ -130,53 +126,20 @@ class _AmountField extends StatelessWidget {
     return TextFormField(
       controller: controller.amountController,
       keyboardType: TextInputType.number,
-      decoration: const InputDecoration(
-        labelText: 'المبلغ',
-        prefixIcon: Icon(Icons.attach_money),
+      decoration: InputDecoration(
+        labelText: 'المبلغ'.tr,
+        prefixIcon: const Icon(Icons.attach_money),
       ),
       validator: (value) {
         if (value == null || value.isEmpty) {
-          return 'أدخل المبلغ';
+          return 'أدخل المبلغ'.tr;
         }
         final parsed = double.tryParse(value);
         if (parsed == null || parsed <= 0) {
-          return 'أدخل رقمًا صحيحًا';
+          return 'أدخل رقمًا صحيحًا'.tr;
         }
         return null;
       },
-    );
-  }
-}
-
-class _TypeSelector extends StatelessWidget {
-  const _TypeSelector({required this.controller});
-
-  final TransactionsController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: ChoiceChip(
-            label: const Text('مصروف'),
-            selected: controller.selectedType.value == TransactionType.expense,
-            selectedColor: AppColors.danger.withAlpha((0.2 * 255).round()),
-            onSelected: (_) =>
-                controller.selectedType.value = TransactionType.expense,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: ChoiceChip(
-            label: const Text('دخل'),
-            selected: controller.selectedType.value == TransactionType.income,
-            selectedColor: AppColors.success.withAlpha((0.2 * 255).round()),
-            onSelected: (_) =>
-                controller.selectedType.value = TransactionType.income,
-          ),
-        ),
-      ],
     );
   }
 }
@@ -199,7 +162,7 @@ class _DropdownField extends StatelessWidget {
     if (items.isEmpty) {
       return InputDecorator(
         decoration: InputDecoration(labelText: label),
-        child: const Text('لا بيانات متاحة حاليًا'),
+        child: Text('لا بيانات متاحة حاليًا'.tr),
       );
     }
 
@@ -227,7 +190,7 @@ class _DateSelector extends StatelessWidget {
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: const Icon(Icons.date_range),
-      title: const Text('التاريخ'),
+      title: Text('التاريخ'.tr),
       subtitle: Text(Formatters.shortDate(controller.selectedDate.value)),
       trailing: IconButton(
         icon: const Icon(Icons.edit_calendar),

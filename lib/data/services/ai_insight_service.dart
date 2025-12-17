@@ -1,5 +1,7 @@
 import 'dart:math';
 
+import 'package:get/get.dart';
+
 import '../models/transaction_model.dart';
 
 /// Lightweight heuristic engine that mimics on-device AI insights.
@@ -8,7 +10,7 @@ class LocalInsightService {
     List<TransactionModel> transactions,
   ) async {
     if (transactions.isEmpty) {
-      return ['ابدأ بتسجيل مصاريفك لتحصل على نصائح مخصصة.'];
+      return ['ابدأ بتسجيل مصاريفك لتحصل على نصائح مخصصة.'.tr];
     }
 
     final expenses = transactions.where(
@@ -25,16 +27,20 @@ class LocalInsightService {
 
     final insights = <String>[
       if (average > 0)
-        'متوسط صرفك للعملية الواحدة هو ${average.toStringAsFixed(2)}، جرّب تقليصه 10٪ هذا الأسبوع.',
+        'متوسط صرفك للعملية الواحدة هو @amount، جرّب تقليصه 10٪ هذا الأسبوع.'
+            .trParams({'amount': average.toStringAsFixed(2)}),
       if (highest != null)
-        'أعلى صرف كان ${highest.amount.toStringAsFixed(2)} في ${highest.date.day}/${highest.date.month}. فكر هل كان ضروريًا؟',
+        'أعلى صرف كان @amount في @date. فكر هل كان ضروريًا؟'.trParams({
+          'amount': highest.amount.toStringAsFixed(2),
+          'date': '${highest.date.day}/${highest.date.month}',
+        }),
     ];
 
     final random = Random();
-    const tips = [
-      'قسّم محفظتك إلى أكثر من حساب لتعرف مصدر الصرف.',
-      'ضع هدف ادخار أسبوعي صغير، واستثمر التكرار.',
-      'استخدم تسجيل الفواتير بالصور لتقليل النسيان.',
+    final tips = [
+      'قسّم محفظتك إلى أكثر من حساب لتعرف مصدر الصرف.'.tr,
+      'ضع هدف ادخار أسبوعي صغير، واستثمر التكرار.'.tr,
+      'استخدم تسجيل الفواتير بالصور لتقليل النسيان.'.tr,
     ];
     insights.add(tips[random.nextInt(tips.length)]);
     return insights;

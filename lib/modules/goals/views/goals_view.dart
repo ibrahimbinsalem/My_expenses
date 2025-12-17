@@ -10,7 +10,7 @@ class GoalsView extends GetView<GoalsController> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('الأهداف المالية')),
+      appBar: AppBar(title: Text('الأهداف المالية'.tr)),
       body: Obx(
         () => ListView(
           padding: const EdgeInsets.all(16),
@@ -39,10 +39,16 @@ class GoalsView extends GetView<GoalsController> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'المستهدف: ${goal.targetAmount} • الحالي: ${goal.currentAmount.toStringAsFixed(1)}',
+                          'المستهدف: @target • الحالي: @current'.trParams({
+                            'target': goal.targetAmount.toStringAsFixed(1),
+                            'current': goal.currentAmount.toStringAsFixed(1),
+                          }),
                         ),
                         Text(
-                          'الموعد: ${goal.deadline.day}/${goal.deadline.month}/${goal.deadline.year}',
+                          'الموعد: @date'.trParams({
+                            'date':
+                                '${goal.deadline.day}/${goal.deadline.month}/${goal.deadline.year}',
+                          }),
                         ),
                       ],
                     ),
@@ -69,17 +75,17 @@ class _GoalForm extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('هدف جديد'),
+            Text('هدف جديد'.tr),
             const SizedBox(height: 12),
             TextField(
               controller: controller.nameController,
-              decoration: const InputDecoration(labelText: 'اسم الهدف'),
+              decoration: InputDecoration(labelText: 'اسم الهدف'.tr),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: controller.amountController,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'المبلغ المستهدف'),
+              decoration: InputDecoration(labelText: 'المبلغ المستهدف'.tr),
             ),
             const SizedBox(height: 12),
             Obx(
@@ -87,7 +93,10 @@ class _GoalForm extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      'التاريخ: ${controller.deadline.value.day}/${controller.deadline.value.month}/${controller.deadline.value.year}',
+                      'التاريخ: @date'.trParams({
+                        'date':
+                            '${controller.deadline.value.day}/${controller.deadline.value.month}/${controller.deadline.value.year}',
+                      }),
                     ),
                   ),
                   IconButton(
@@ -110,7 +119,7 @@ class _GoalForm extends StatelessWidget {
             const SizedBox(height: 12),
             ElevatedButton(
               onPressed: controller.createGoal,
-              child: const Text('إضافة الهدف'),
+              child: Text('إضافة الهدف'.tr),
             ),
           ],
         ),

@@ -8,4 +8,7 @@ abstract class AppRoutes {
   static const receipts = '/receipts';
   static const settings = '/settings';
   static const categorySettings = '/settings/categories';
+  static const currencySettings = '/settings/currencies';
+  static const remindersSettings = '/settings/reminders';
+  static const notifications = '/notifications';
 }

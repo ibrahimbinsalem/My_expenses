@@ -10,7 +10,7 @@ class ReceiptsView extends GetView<ReceiptsController> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('إيصالات المصروفات')),
+      appBar: AppBar(title: Text('إيصالات المصروفات'.tr)),
       body: Obx(
         () => controller.isLoading.value && controller.receipts.isEmpty
             ? const Center(child: CircularProgressIndicator())
@@ -31,7 +31,10 @@ class ReceiptsView extends GetView<ReceiptsController> {
                         child: const Icon(Icons.receipt_long),
                       ),
                       title: Text(
-                        Formatters.currency(receipt.amount, symbol: 'ريال'),
+                        Formatters.currency(
+                          receipt.amount,
+                          symbol: 'ريال'.tr,
+                        ),
                       ),
                       subtitle: Text(
                         receipt.note ?? Formatters.shortDate(receipt.date),

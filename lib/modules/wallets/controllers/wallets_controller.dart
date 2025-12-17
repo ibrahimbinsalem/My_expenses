@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../../data/models/transaction_model.dart';
 import '../../../data/models/wallet_model.dart';
 import '../../../data/repositories/local_expense_repository.dart';
 
@@ -11,9 +11,6 @@ class WalletsController extends GetxController {
 
   final wallets = <WalletModel>[].obs;
   final isLoading = false.obs;
-  final nameController = TextEditingController();
-  final balanceController = TextEditingController();
-  final currencyController = TextEditingController(text: 'SAR');
   final walletTypes = ['cash', 'bank', 'digital'];
   final selectedType = 'cash'.obs;
 
@@ -32,27 +29,55 @@ class WalletsController extends GetxController {
     }
   }
 
-  Future<void> addWallet() async {
-    if (nameController.text.trim().isEmpty) return;
-    await _repository.insertWallet(
+  Future<bool> addWallet({
+    required String name,
+    required String currencyCode,
+    required double initialBalance,
+    required String type,
+  }) async {
+    if (name.trim().isEmpty) return false;
+    final normalizedCurrency = currencyCode.toUpperCase();
+    final walletId = await _repository.insertWallet(
       WalletModel(
-        name: nameController.text.trim(),
-        type: selectedType.value,
-        balance: double.tryParse(balanceController.text) ?? 0,
-        currency: currencyController.text,
+        name: name.trim(),
+        type: type,
+        balance: 0,
+        currency: normalizedCurrency,
         createdAt: DateTime.now(),
       ),
     );
-    nameController.clear();
-    balanceController.clear();
-    await fetchWallets();
+    if (initialBalance > 0) {
+      final depositCategoryId = await _repository.ensureSystemCategory(
+        name: 'شحن رصيد'.tr,
+        icon: 'savings',
+        color: 0xFF4CAF50,
+      );
+      await _repository.addTransaction(
+        TransactionModel(
+          walletId: walletId,
+          categoryId: depositCategoryId,
+          amount: initialBalance,
+          type: TransactionType.income,
+          note: 'رصيد افتتاحي'.tr,
+          date: DateTime.now(),
+        ),
+      );
+    }
+    return true;
   }
 
-  @override
-  void onClose() {
-    nameController.dispose();
-    balanceController.dispose();
-    currencyController.dispose();
-    super.onClose();
+  Future<bool> renameWallet(WalletModel wallet, String newName) async {
+    if (wallet.id == null) return false;
+    final trimmed = newName.trim();
+    if (trimmed.isEmpty) return false;
+    await _repository.updateWallet(wallet.copyWith(name: trimmed));
+    await fetchWallets();
+    return true;
+  }
+
+  Future<void> deleteWallet(WalletModel wallet) async {
+    if (wallet.id == null) return;
+    await _repository.deleteWallet(wallet.id!);
+    await fetchWallets();
   }
 }

@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 import 'core/bindings/root_binding.dart';
+import 'core/controllers/locale_controller.dart';
 import 'core/controllers/theme_controller.dart';
+import 'core/localization/app_translations.dart';
+import 'core/services/notification_service.dart';
 import 'core/services/settings_service.dart';
 import 'core/theme/app_theme.dart';
 import 'data/local/app_database.dart';
@@ -13,6 +17,8 @@ import 'routes/app_routes.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('ar');
+  await initializeDateFormatting('en');
   await GetStorage.init();
   final settings = await SettingsService().init();
   Get.put<SettingsService>(settings, permanent: true);
@@ -22,23 +28,32 @@ Future<void> main() async {
     LocalExpenseRepository(database),
     permanent: true,
   );
-  runApp(const MyExpensesApp());
+  final notificationService = await NotificationService().init();
+  Get.put<NotificationService>(notificationService, permanent: true);
+  if (settings.notificationsEnabled) {
+    await notificationService.rescheduleAllReminders();
+  }
+  final translations = await AppTranslations.load();
+  runApp(MyExpensesApp(translations: translations));
 }
 
 class MyExpensesApp extends StatelessWidget {
-  const MyExpensesApp({super.key});
+  const MyExpensesApp({required this.translations, super.key});
+
+  final AppTranslations translations;
 
   @override
   Widget build(BuildContext context) {
     final settings = Get.find<SettingsService>();
     final themeController = Get.put(ThemeController(settings), permanent: true);
+    final localeController = Get.put(LocaleController(settings), permanent: true);
     final initialRoute = settings.isOnboarded
         ? AppRoutes.dashboard
         : AppRoutes.onboarding;
 
     return Obx(
       () => GetMaterialApp(
-        title: 'My Expenses AI',
+        title: 'app.title'.tr,
         debugShowCheckedModeBanner: false,
         initialRoute: initialRoute,
         initialBinding: RootBinding(),
@@ -46,19 +61,11 @@ class MyExpensesApp extends StatelessWidget {
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
         themeMode: themeController.themeMode.value,
-        defaultTransition: Transition.cupertino,
-        translations: _FallbackTranslations(),
-        locale: const Locale('ar'),
+        locale: localeController.locale.value,
+        translations: translations,
         fallbackLocale: const Locale('en'),
+        defaultTransition: Transition.cupertino,
       ),
     );
   }
-}
-
-class _FallbackTranslations extends Translations {
-  @override
-  Map<String, Map<String, String>> get keys => {
-    'ar': {'welcome': 'أهلًا بك'},
-    'en': {'welcome': 'Welcome'},
-  };
 }

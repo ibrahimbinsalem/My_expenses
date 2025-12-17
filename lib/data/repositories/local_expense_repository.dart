@@ -2,9 +2,12 @@ import 'package:sqflite/sqflite.dart';
 
 import '../local/app_database.dart';
 import '../models/category_model.dart';
+import '../models/currency_model.dart';
 import '../models/goal_model.dart';
 import '../models/reminder_model.dart';
+import '../models/notification_log_model.dart';
 import '../models/transaction_model.dart';
+import '../models/user_insight_model.dart';
 import '../models/user_model.dart';
 import '../models/wallet_model.dart';
 
@@ -22,9 +25,20 @@ class LocalExpenseRepository {
     return UserModel.fromMap(result.first);
   }
 
-  Future<int> insertUser(UserModel user) async {
+  Future<void> saveUser(UserModel user) async {
     final db = await _db;
-    return db.insert('users', user.toMap());
+    final existing = await db.query('users', limit: 1);
+    if (existing.isEmpty) {
+      await db.insert('users', user.toMap());
+    } else {
+      final id = existing.first['id'] as int;
+      await db.update(
+        'users',
+        user.copyWith(id: id).toMap(),
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    }
   }
 
   Future<List<WalletModel>> fetchWallets() async {
@@ -36,6 +50,77 @@ class LocalExpenseRepository {
   Future<int> insertWallet(WalletModel wallet) async {
     final db = await _db;
     return db.insert('wallets', wallet.toMap());
+  }
+
+  Future<void> updateWallet(WalletModel wallet) async {
+    if (wallet.id == null) return;
+    final db = await _db;
+    await db.update(
+      'wallets',
+      wallet.toMap(),
+      where: 'id = ?',
+      whereArgs: [wallet.id],
+    );
+  }
+
+  Future<void> deleteWallet(int id) async {
+    final db = await _db;
+    await db.delete('transactions', where: 'wallet_id = ?', whereArgs: [id]);
+    await db.delete('wallets', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<List<CurrencyModel>> fetchCurrencies() async {
+    final db = await _db;
+    await _ensureCurrenciesTable(db);
+    final data = await db.query('currencies', orderBy: 'name ASC');
+    return data.map(CurrencyModel.fromMap).toList();
+  }
+
+  Future<int> insertCurrency(CurrencyModel currency) async {
+    final db = await _db;
+    await _ensureCurrenciesTable(db);
+    return db.insert('currencies', currency.toMap());
+  }
+
+  Future<void> updateCurrency(CurrencyModel currency) async {
+    if (currency.id == null) return;
+    final db = await _db;
+    await _ensureCurrenciesTable(db);
+    await db.update(
+      'currencies',
+      currency.toMap(),
+      where: 'id = ?',
+      whereArgs: [currency.id],
+    );
+  }
+
+  Future<void> deleteCurrency(int id) async {
+    final db = await _db;
+    await _ensureCurrenciesTable(db);
+    await db.delete('currencies', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<bool> currencyCodeExists(String code, {int? excludeId}) async {
+    final db = await _db;
+    await _ensureCurrenciesTable(db);
+    final result = await db.query(
+      'currencies',
+      where: excludeId != null ? 'code = ? AND id != ?' : 'code = ?',
+      whereArgs: excludeId != null ? [code, excludeId] : [code],
+      limit: 1,
+    );
+    return result.isNotEmpty;
+  }
+
+  Future<void> _ensureCurrenciesTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS currencies (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        code TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        is_default INTEGER NOT NULL DEFAULT 0
+      );
+    ''');
   }
 
   Future<List<CategoryModel>> fetchCategories() async {
@@ -170,6 +255,61 @@ class LocalExpenseRepository {
     return data.map(ReminderModel.fromMap).toList();
   }
 
+  Future<int> insertReminder(ReminderModel reminder) async {
+    final db = await _db;
+    return db.insert('reminders', reminder.toMap());
+  }
+
+  Future<void> updateReminder(ReminderModel reminder) async {
+    if (reminder.id == null) return;
+    final db = await _db;
+    await db.update(
+      'reminders',
+      reminder.toMap(),
+      where: 'id = ?',
+      whereArgs: [reminder.id],
+    );
+  }
+
+  Future<void> deleteReminder(int id) async {
+    final db = await _db;
+    await db.delete('reminders', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<int> insertNotificationLog(NotificationLogModel log) async {
+    final db = await _db;
+    return db.insert('notifications_log', log.toMap());
+  }
+
+  Future<List<NotificationLogModel>> fetchNotificationLogs() async {
+    final db = await _db;
+    final data = await db.query(
+      'notifications_log',
+      orderBy: 'datetime(created_at) DESC',
+    );
+    return data.map(NotificationLogModel.fromMap).toList();
+  }
+
+  Future<void> markNotificationAsRead(int id) async {
+    final db = await _db;
+    await db.update(
+      'notifications_log',
+      {'is_read': 1},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<void> markAllNotificationsAsRead() async {
+    final db = await _db;
+    await db.update('notifications_log', {'is_read': 1});
+  }
+
+  Future<void> clearNotificationLogs() async {
+    final db = await _db;
+    await db.delete('notifications_log');
+  }
+
   Future<Map<String, double>> spendingByCategory(DateTime month) async {
     final db = await _db;
     final start = DateTime(month.year, month.month, 1);
@@ -214,5 +354,46 @@ class LocalExpenseRepository {
     );
     final value = result.first['balance'] as num?;
     return value?.toDouble() ?? 0;
+  }
+
+  Future<List<TransactionModel>> fetchTransactionsByWallet(
+    int walletId, {
+    int? limit,
+  }) async {
+    final db = await _db;
+    final data = await db.query(
+      'transactions',
+      where: 'wallet_id = ?',
+      whereArgs: [walletId],
+      orderBy: 'date DESC',
+      limit: limit,
+    );
+    return data.map(TransactionModel.fromMap).toList();
+  }
+
+  Future<void> cacheUserInsights(int userId, List<String> insights) async {
+    final db = await _db;
+    await db.delete('user_insights', where: 'user_id = ?', whereArgs: [userId]);
+    for (final insight in insights) {
+      await db.insert(
+        'user_insights',
+        UserInsightModel(
+          userId: userId,
+          content: insight,
+          createdAt: DateTime.now(),
+        ).toMap(),
+      );
+    }
+  }
+
+  Future<List<String>> fetchCachedInsights(int userId) async {
+    final db = await _db;
+    final data = await db.query(
+      'user_insights',
+      where: 'user_id = ?',
+      whereArgs: [userId],
+      orderBy: 'created_at DESC',
+    );
+    return data.map((row) => row['content'] as String).toList();
   }
 }

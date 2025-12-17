@@ -1,3 +1,5 @@
+import 'package:get/get.dart';
+
 /// Placeholder for an offline OCR service (e.g., Google ML Kit).
 /// Currently returns mocked data until the native implementation is wired.
 class ReceiptOcrService {
@@ -7,7 +9,7 @@ class ReceiptOcrService {
     return {
       'amount': 120.5,
       'date': DateTime.now().toIso8601String(),
-      'category': 'مطاعم',
+      'category': 'مطاعم'.tr,
     };
   }
 }

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../../core/constants/gulf_currencies.dart';
+import '../../../core/utils/currency_utils.dart';
+import '../../../data/models/currency_model.dart';
 import '../../../data/models/transaction_model.dart';
 import '../../../data/models/wallet_model.dart';
 import '../../../data/repositories/local_expense_repository.dart';
@@ -24,34 +26,35 @@ class DashboardController extends GetxController {
   final isBalanceHidden = true.obs;
   final primaryCurrencyName = 'ريال سعودي'.obs;
   final primaryCurrencyCode = 'SAR'.obs;
+  final _currencyLookup = <String, String>{};
 
   final navItems = const [
     DashboardNavItem(
-      label: 'الرئيسية',
+      labelKey: 'nav.home',
       icon: Icons.space_dashboard_outlined,
       selectedIcon: Icons.space_dashboard,
       route: AppRoutes.dashboard,
     ),
     DashboardNavItem(
-      label: 'المحافظ',
+      labelKey: 'nav.wallets',
       icon: Icons.account_balance_wallet_outlined,
       selectedIcon: Icons.account_balance_wallet,
       route: AppRoutes.wallets,
     ),
     DashboardNavItem(
-      label: 'الأهداف',
+      labelKey: 'nav.goals',
       icon: Icons.flag_outlined,
       selectedIcon: Icons.flag,
       route: AppRoutes.goals,
     ),
     DashboardNavItem(
-      label: 'الرؤى',
+      labelKey: 'nav.insights',
       icon: Icons.insights_outlined,
       selectedIcon: Icons.insights,
       route: AppRoutes.insights,
     ),
     DashboardNavItem(
-      label: 'الإعدادات',
+      labelKey: 'nav.settings',
       icon: Icons.settings_outlined,
       selectedIcon: Icons.settings,
       route: AppRoutes.settings,
@@ -68,6 +71,17 @@ class DashboardController extends GetxController {
     isLoading.value = true;
     try {
       totalBalance.value = await _repository.totalBalance();
+      final customCurrencies = await _repository.fetchCurrencies();
+      _currencyLookup
+        ..clear()
+        ..addEntries(
+          customCurrencies.map(
+            (CurrencyModel currency) => MapEntry(
+              currency.code.toUpperCase(),
+              currency.name,
+            ),
+          ),
+        );
       final wallets = await _repository.fetchWallets();
       walletSummaries.assignAll(await _buildWalletSummaries(wallets));
       if (wallets.isNotEmpty) {
@@ -77,7 +91,7 @@ class DashboardController extends GetxController {
         );
       } else {
         primaryCurrencyCode.value = 'SAR';
-        primaryCurrencyName.value = 'ريال سعودي';
+        primaryCurrencyName.value = 'ريال سعودي'.tr;
       }
       final now = DateTime.now();
       monthlySpending.assignAll(await _repository.spendingByCategory(now));
@@ -123,25 +137,27 @@ class DashboardController extends GetxController {
 
   String _resolveCurrencyName(String code) {
     final normalized = code.toUpperCase();
+    final lookupName = _currencyLookup[normalized];
+    if (lookupName != null) return lookupName;
     for (final entry in gulfCurrencies) {
       final entryCode = (entry['code'] as String).toUpperCase();
       if (entryCode == normalized) {
-        return entry['name'] as String;
+        return localizedCurrencyName(entry.cast<String, String>());
       }
     }
-    return 'عملة $code';
+    return 'عملة @code'.trParams({'code': code});
   }
 
   Future<void> openAddFundsSheet(BuildContext context) async {
     final wallets = await _repository.fetchWallets();
     if (wallets.isEmpty) {
-      Get.snackbar('تنبيه', 'أضف محفظة قبل شحن الرصيد');
+      Get.snackbar('common.alert'.tr, 'أضف محفظة قبل شحن الرصيد'.tr);
       return;
     }
 
     int? selectedWallet = wallets.first.id;
     final amountController = TextEditingController();
-    final noteController = TextEditingController(text: 'شحن رصيد');
+    final noteController = TextEditingController(text: 'شحن رصيد'.tr);
 
     if (!context.mounted) return;
     await showModalBottomSheet(
@@ -164,15 +180,18 @@ class DashboardController extends GetxController {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'شحن محفظة',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  Text(
+                    'شحن محفظة'.tr,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   InputDecorator(
-                    decoration: const InputDecoration(
-                      labelText: 'المحفظة',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: 'المحفظة'.tr,
+                      border: const OutlineInputBorder(),
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<int>(
@@ -197,17 +216,17 @@ class DashboardController extends GetxController {
                   TextField(
                     controller: amountController,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'المبلغ',
-                      prefixIcon: Icon(Icons.attach_money),
+                    decoration: InputDecoration(
+                      labelText: 'المبلغ'.tr,
+                      prefixIcon: const Icon(Icons.attach_money),
                     ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: noteController,
-                    decoration: const InputDecoration(
-                      labelText: 'ملاحظة',
-                      prefixIcon: Icon(Icons.note_alt_outlined),
+                    decoration: InputDecoration(
+                      labelText: 'ملاحظة'.tr,
+                      prefixIcon: const Icon(Icons.note_alt_outlined),
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -221,7 +240,10 @@ class DashboardController extends GetxController {
                         if (selectedWallet == null ||
                             amount == null ||
                             amount <= 0) {
-                          Get.snackbar('تنبيه', 'أدخل بيانات صحيحة');
+                          Get.snackbar(
+                            'common.alert'.tr,
+                            'أدخل بيانات صحيحة'.tr,
+                          );
                           return;
                         }
                         final navigator = Navigator.of(context);
@@ -233,7 +255,7 @@ class DashboardController extends GetxController {
                         navigator.pop();
                       },
                       icon: const Icon(Icons.check),
-                      label: const Text('تأكيد الشحن'),
+                      label: Text('تأكيد الشحن'.tr),
                     ),
                   ),
                 ],
@@ -251,7 +273,7 @@ class DashboardController extends GetxController {
     String? note,
   }) async {
     final depositCategoryId = await _repository.ensureSystemCategory(
-      name: 'شحن رصيد',
+      name: 'شحن رصيد'.tr,
       icon: 'savings',
       color: 0xFF4CAF50,
     );
@@ -260,23 +282,26 @@ class DashboardController extends GetxController {
       categoryId: depositCategoryId,
       amount: amount,
       type: TransactionType.income,
-      note: note?.isEmpty ?? true ? 'شحن رصيد' : note,
+      note: note?.isEmpty ?? true ? 'شحن رصيد'.tr : note,
       date: DateTime.now(),
     );
     await _repository.addTransaction(transaction);
     await loadDashboard();
-    Get.snackbar('تم بنجاح', 'تم شحن المحفظة وتسجيل العملية');
+    Get.snackbar(
+      'common.success'.tr,
+      'تم شحن المحفظة وتسجيل العملية'.tr,
+    );
   }
 }
 
 class DashboardNavItem {
-  final String label;
+  final String labelKey;
   final IconData icon;
   final IconData selectedIcon;
   final String route;
 
   const DashboardNavItem({
-    required this.label,
+    required this.labelKey,
     required this.icon,
     required this.selectedIcon,
     required this.route,
