@@ -30,6 +30,8 @@ class InsightsController extends GetxController {
   final totalExpense = 0.0.obs;
   final aiInsights = <String>[].obs;
   final walletInsights = <WalletInsight>[].obs;
+  final savingsReports = <SavingsReport>[].obs;
+  final cashflowSummaries = <WalletCashflow>[].obs;
   final isOnline = true.obs;
   final isLoading = false.obs;
   final aiFeatureEnabled = false.obs;
@@ -54,6 +56,12 @@ class InsightsController extends GetxController {
         from: start,
         to: end,
       );
+      final previousStart = DateTime(now.year, now.month - 1, 1);
+      final previousEnd = DateTime(now.year, now.month, 0, 23, 59, 59);
+      final previousTransactions = await _repository.fetchTransactions(
+        from: previousStart,
+        to: previousEnd,
+      );
       spendingByCategory.assignAll(await _repository.spendingByCategory(now));
       budgetUsage.value = await _repository.monthlyBudgetUsage(
         _settingsService.monthlyBudget,
@@ -63,6 +71,8 @@ class InsightsController extends GetxController {
       _calculateTotals(transactions);
       await _loadGeminiInsights(transactions);
       await _buildWalletInsights(transactions);
+      await _buildCashflowSummaries(transactions);
+      await _buildSavingsReports(transactions, previousTransactions);
     } finally {
       isLoading.value = false;
     }
@@ -158,6 +168,131 @@ class InsightsController extends GetxController {
     }
     walletInsights.assignAll(results);
   }
+
+  Future<void> _buildCashflowSummaries(
+    List<TransactionModel> monthTransactions,
+  ) async {
+    final grouped = <int, List<TransactionModel>>{};
+    for (final txn in monthTransactions) {
+      grouped.putIfAbsent(txn.walletId, () => []).add(txn);
+    }
+    final wallets = await _repository.fetchWallets();
+    final summaries = <WalletCashflow>[];
+    final now = DateTime.now();
+    final startOfMonth = DateTime(now.year, now.month, 1);
+    final daysElapsed = now.difference(startOfMonth).inDays + 1;
+    final totalDays = DateTime(now.year, now.month + 1, 0).day;
+    final remainingDays = (totalDays - daysElapsed).clamp(0, totalDays);
+    for (final wallet in wallets) {
+      if (wallet.id == null) continue;
+      final txns = grouped[wallet.id!] ?? <TransactionModel>[];
+      var income = 0.0;
+      var expense = 0.0;
+      for (final txn in txns) {
+        if (txn.type == TransactionType.income) {
+          income += txn.amount;
+        } else {
+          expense += txn.amount;
+        }
+      }
+      final dailyNet =
+          daysElapsed > 0 ? (income - expense) / daysElapsed : 0.0;
+      final projectedNet = dailyNet * remainingDays;
+      summaries.add(
+        WalletCashflow(
+          wallet: wallet,
+          income: income,
+          expense: expense,
+          remainingDays: remainingDays,
+          projectedNet: projectedNet,
+        ),
+      );
+    }
+    cashflowSummaries.assignAll(summaries);
+  }
+
+  Future<void> _buildSavingsReports(
+    List<TransactionModel> currentTransactions,
+    List<TransactionModel> previousTransactions,
+  ) async {
+    final wallets = await _repository.fetchWallets();
+    final categories = await _repository.fetchCategories();
+    final categoryNames = <int, String>{
+      for (final category in categories)
+        if (category.id != null) category.id!: category.name,
+    };
+    final now = DateTime.now();
+    final startOfMonth = DateTime(now.year, now.month, 1);
+    final daysElapsed = now.difference(startOfMonth).inDays + 1;
+    final totalDays = DateTime(now.year, now.month + 1, 0).day;
+    final previousExpenseByWallet = <int, double>{};
+    for (final txn in previousTransactions) {
+      if (txn.type != TransactionType.expense) continue;
+      previousExpenseByWallet.update(
+        txn.walletId,
+        (value) => value + txn.amount,
+        ifAbsent: () => txn.amount,
+      );
+    }
+    final groupedCurrent = <int, List<TransactionModel>>{};
+    for (final txn in currentTransactions) {
+      groupedCurrent.putIfAbsent(txn.walletId, () => []).add(txn);
+    }
+    final reports = <SavingsReport>[];
+    for (final wallet in wallets) {
+      if (wallet.id == null) continue;
+      final walletTransactions =
+          groupedCurrent[wallet.id!] ?? <TransactionModel>[];
+      final expenseTransactions = walletTransactions
+          .where((txn) => txn.type == TransactionType.expense)
+          .toList();
+      final spent = expenseTransactions.fold<double>(
+        0,
+        (prev, txn) => prev + txn.amount,
+      );
+      if (spent <= 0) continue;
+      final weeksElapsed = (daysElapsed / 7).clamp(1, 5).toDouble();
+      final weeklyAverage = spent / weeksElapsed;
+      final projected = (spent / daysElapsed) * totalDays;
+      final categoryTotals = <int, double>{};
+      for (final txn in expenseTransactions) {
+        categoryTotals.update(
+          txn.categoryId,
+          (value) => value + txn.amount,
+          ifAbsent: () => txn.amount,
+        );
+      }
+      var topCategoryId = categoryTotals.keys.isEmpty
+          ? null
+          : categoryTotals.entries
+                .reduce((a, b) => a.value >= b.value ? a : b)
+                .key;
+      final topAmount = topCategoryId == null
+          ? spent
+          : categoryTotals[topCategoryId] ?? spent;
+      final topName = topCategoryId == null
+          ? 'savingsReports.misc'.tr
+          : categoryNames[topCategoryId] ?? 'savingsReports.misc'.tr;
+      final previous = previousExpenseByWallet[wallet.id!] ?? 0.0;
+      final reductionFactor = projected > wallet.balance ? 0.15 : 0.1;
+      final suggestedCut = (topAmount * reductionFactor)
+          .clamp(0, projected)
+          .toDouble();
+      reports.add(
+        SavingsReport(
+          wallet: wallet,
+          currentExpense: spent,
+          weeklyAverage: weeklyAverage,
+          projectedExpense: projected,
+          topCategoryName: topName,
+          topCategoryAmount: topAmount,
+          suggestedCut: suggestedCut,
+          previousExpense: previous,
+        ),
+      );
+    }
+    savingsReports.assignAll(reports);
+  }
 }
 
 class WalletInsight {
@@ -176,6 +311,48 @@ class WalletInsight {
   final List<String> insights;
   final double budgetUsage;
   final double budgetLimit;
+
+  double get net => income - expense;
+}
+
+class SavingsReport {
+  SavingsReport({
+    required this.wallet,
+    required this.currentExpense,
+    required this.weeklyAverage,
+    required this.projectedExpense,
+    required this.topCategoryName,
+    required this.topCategoryAmount,
+    required this.suggestedCut,
+    required this.previousExpense,
+  });
+
+  final WalletModel wallet;
+  final double currentExpense;
+  final double weeklyAverage;
+  final double projectedExpense;
+  final String topCategoryName;
+  final double topCategoryAmount;
+  final double suggestedCut;
+  final double previousExpense;
+
+  double get deltaVsPrevious => currentExpense - previousExpense;
+}
+
+class WalletCashflow {
+  WalletCashflow({
+    required this.wallet,
+    required this.income,
+    required this.expense,
+    required this.remainingDays,
+    required this.projectedNet,
+  });
+
+  final WalletModel wallet;
+  final double income;
+  final double expense;
+  final int remainingDays;
+  final double projectedNet;
 
   double get net => income - expense;
 }

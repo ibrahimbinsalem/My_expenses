@@ -6,6 +6,7 @@ import '../../../core/config/api_keys.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/formatters.dart';
 import '../controllers/insights_controller.dart';
+import '../../../routes/app_routes.dart';
 
 class InsightsView extends GetView<InsightsController> {
   const InsightsView({super.key});
@@ -13,6 +14,7 @@ class InsightsView extends GetView<InsightsController> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+   
       appBar: AppBar(title: Text('التحليلات الذكية'.tr)),
       body: Obx(() {
         if (controller.isLoading.value &&
@@ -39,11 +41,24 @@ class InsightsView extends GetView<InsightsController> {
               const SizedBox(height: 16),
               _CategoryInsightChart(data: controller.spendingByCategory),
               const SizedBox(height: 16),
-              _MonthlyOverviewList(
-                insights: controller.walletInsights,
-                totalIncome: controller.totalIncome.value,
-                totalExpense: controller.totalExpense.value,
-              ),
+              if (controller.goalInsights.value != null) ...[
+                _GoalsInsightCard(
+                  data: controller.goalInsights.value!,
+                ),
+                const SizedBox(height: 16),
+              ],
+              _MonthlyOverviewList(insights: controller.walletInsights),
+              if (controller.cashflowSummaries.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                _CashflowSection(
+                  cashflows: controller.cashflowSummaries,
+                ),
+              ],
+              const SizedBox(height: 16),
+              if (controller.savingsReports.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                _SavingsReportsSection(reports: controller.savingsReports),
+              ],
               const SizedBox(height: 16),
               _WalletInsightsList(insights: controller.walletInsights),
               const SizedBox(height: 16),
@@ -61,94 +76,235 @@ class InsightsView extends GetView<InsightsController> {
   }
 }
 
-class _MonthlyOverviewList extends StatelessWidget {
-  const _MonthlyOverviewList({
-    required this.insights,
-    required this.totalIncome,
-    required this.totalExpense,
-  });
+class _GoalsInsightCard extends StatelessWidget {
+  const _GoalsInsightCard({required this.data});
 
-  final List<WalletInsight> insights;
-  final double totalIncome;
-  final double totalExpense;
+  final GoalsInsightData data;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final net = totalIncome - totalExpense;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1F1C2C), Color(0xFF928DAB)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.18),
+            blurRadius: 18,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'goals.insights.title'.tr,
+                      style: theme.textTheme.titleLarge
+                          ?.copyWith(color: Colors.white),
+                    ),
+                    Text(
+                      'goals.insights.subtitle'.tr,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: Colors.white70),
+                    ),
+                  ],
+                ),
+              ),
+              TextButton(
+                onPressed: () => Get.toNamed(AppRoutes.goals),
+                child: Text(
+                  'goals.insights.manage'.tr,
+                  style: const TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              _GoalChip(
+                icon: Icons.flag_outlined,
+                label: 'goals.insights.active'
+                    .trParams({'count': data.activeCount.toString()}),
+              ),
+              _GoalChip(
+                icon: Icons.archive_outlined,
+                label: 'goals.insights.archived'
+                    .trParams({'count': data.archivedCount.toString()}),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (data.remainingByCurrency.isNotEmpty)
+            _CurrencyBreakdownRow(
+              title: 'goals.insights.remaining_currency'.tr,
+              entries: data.remainingByCurrency.entries.toList(),
+            ),
+          if (data.archivedByCurrency.isNotEmpty)
+            _CurrencyBreakdownRow(
+              title: 'goals.insights.archived_currency'.tr,
+              entries: data.archivedByCurrency.entries.toList(),
+            ),
+          const SizedBox(height: 12),
+          if (data.highlights.isEmpty)
+            Text(
+              'goals.insights.no_active'.tr,
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: Colors.white70),
+            )
+          else ...[
+            Text(
+              'goals.insights.highlights'.tr,
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: Colors.white, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            ...data.highlights.map(
+              (highlight) => Card(
+                color: Colors.white.withOpacity(0.08),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: ListTile(
+                  leading: CircularProgressIndicator(
+                    value: highlight.progress,
+                    strokeWidth: 4,
+                    backgroundColor: Colors.white24,
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      Colors.white,
+                    ),
+                  ),
+                  title: Text(
+                    highlight.name,
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  subtitle: Text(
+                    'goals.insights.deadline'.trParams({
+                          'date': Formatters.shortDate(highlight.deadline),
+                        }) +
+                        ' • ' +
+                        'goals.insights.progress'.trParams({
+                          'percent':
+                              (highlight.progress * 100).clamp(0, 100).toStringAsFixed(0),
+                        }),
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                  trailing: Text(
+                    Formatters.currency(
+                      highlight.remaining,
+                      symbol: highlight.currency,
+                    ),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _GoalChip extends StatelessWidget {
+  const _GoalChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Chip(
+      backgroundColor: Colors.white.withOpacity(0.12),
+      avatar: Icon(icon, color: Colors.white70),
+      label: Text(
+        label,
+        style: const TextStyle(color: Colors.white),
+      ),
+    );
+  }
+}
+
+class _CurrencyBreakdownRow extends StatelessWidget {
+  const _CurrencyBreakdownRow({required this.title, required this.entries});
+
+  final String title;
+  final List<MapEntry<String, double>> entries;
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF0F2027), Color(0xFF2C5364)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(28),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.15),
-                blurRadius: 25,
-                offset: const Offset(0, 14),
-              ),
-            ],
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white70,
+            fontWeight: FontWeight.w600,
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'insights.overview.title'.tr,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _OverviewTile(
-                      label: 'insights.overview.income'.tr,
-                      value: Formatters.currency(
-                        totalIncome,
-                        symbol: 'ريال'.tr,
-                      ),
-                      icon: Icons.trending_up,
-                      color: Colors.white,
-                      inverse: true,
-                    ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: entries
+              .map(
+                (entry) => Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _OverviewTile(
-                      label: 'insights.overview.expense'.tr,
-                      value: Formatters.currency(
-                        totalExpense,
-                        symbol: 'ريال'.tr,
-                      ),
-                      icon: Icons.trending_down,
-                      color: Colors.white,
-                      inverse: true,
+                  child: Text(
+                    Formatters.currency(
+                      entry.value,
+                      symbol: entry.key,
                     ),
+                    style: const TextStyle(color: Colors.white),
                   ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'insights.overview.net'.trParams({
-                  'amount': Formatters.currency(net, symbol: 'ريال'.tr),
-                }),
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.9),
-                  fontWeight: FontWeight.w600,
                 ),
-              ),
-            ],
-          ),
+              )
+              .toList(),
+        ),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+}
+
+class _MonthlyOverviewList extends StatelessWidget {
+  const _MonthlyOverviewList({required this.insights});
+
+  final List<WalletInsight> insights;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'insights.overview.title'.tr,
+          style: theme.textTheme.titleMedium,
         ),
         const SizedBox(height: 12),
         ...insights.map(
@@ -189,6 +345,881 @@ class _MonthlyOverviewList extends StatelessWidget {
               ),
             ),
           ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SavingsReportsSection extends StatelessWidget {
+  const _SavingsReportsSection({required this.reports});
+
+  final List<SavingsReport> reports;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'savingsReports.title'.tr,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'savingsReports.subtitle'.tr,
+          style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
+        ),
+        const SizedBox(height: 12),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final itemWidth = constraints.maxWidth * 0.85;
+            return SizedBox(
+              height: 260,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                itemBuilder: (context, index) {
+                  final report = reports[index];
+                  final currency = report.wallet.currency;
+                  final delta = report.deltaVsPrevious;
+                  final deltaKey = delta >= 0
+                      ? 'savingsReports.deltaUp'
+                      : 'savingsReports.deltaDown';
+                  final deltaText = delta.abs() < 1
+                      ? 'savingsReports.deltaStable'.tr
+                      : deltaKey.trParams({
+                          'amount':
+                              Formatters.currency(delta.abs(), symbol: currency),
+                        });
+                  return SizedBox(
+                    width: itemWidth,
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(4),
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              theme.colorScheme.primary.withOpacity(0.9),
+                              theme.colorScheme.primary.withOpacity(0.7),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(28),
+                          boxShadow: [
+                            BoxShadow(
+                              color: theme.colorScheme.primary.withOpacity(0.2),
+                              blurRadius: 18,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              report.wallet.name,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              deltaText,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 4,
+                              children: [
+                                Chip(
+                                  backgroundColor: Colors.white.withOpacity(0.15),
+                                  label: Text(
+                                    'savingsReports.topCategory'.trParams({
+                                      'name': report.topCategoryName,
+                                    }),
+                                    style: const TextStyle(color: Colors.white),
+                                  ),
+                                ),
+                                Chip(
+                                  backgroundColor: Colors.white.withOpacity(0.15),
+                                  label: Text(
+                                    Formatters.currency(
+                                      report.topCategoryAmount,
+                                      symbol: currency,
+                                    ),
+                                    style: const TextStyle(color: Colors.white),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _SavingsMetric(
+                                    label: 'savingsReports.weeklyLabel'.tr,
+                                    value: Formatters.currency(
+                                      report.weeklyAverage,
+                                      symbol: currency,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: _SavingsMetric(
+                                    label: 'savingsReports.projectedLabel'.tr,
+                                    value: Formatters.currency(
+                                      report.projectedExpense,
+                                      symbol: currency,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'savingsReports.tip'.trParams({
+                                'category': report.topCategoryName,
+                                'amount': Formatters.currency(
+                                  report.suggestedCut,
+                                  symbol: currency,
+                                ),
+                              }),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                itemCount: reports.length,
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _SavingsMetric extends StatelessWidget {
+  const _SavingsMetric({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 12,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _GoalsInsightCard extends StatelessWidget {
+  const _GoalsInsightCard({required this.data});
+
+  final GoalsInsightData data;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1F1C2C), Color(0xFF928DAB)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.18),
+            blurRadius: 18,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'goals.insights.title'.tr,
+                      style: theme.textTheme.titleLarge
+                          ?.copyWith(color: Colors.white),
+                    ),
+                    Text(
+                      'goals.insights.subtitle'.tr,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: Colors.white70),
+                    ),
+                  ],
+                ),
+              ),
+              TextButton(
+                onPressed: () => Get.toNamed(AppRoutes.goals),
+                child: Text(
+                  'goals.insights.manage'.tr,
+                  style: const TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              _GoalChip(
+                icon: Icons.flag_outlined,
+                label: 'goals.insights.active'
+                    .trParams({'count': data.activeCount.toString()}),
+              ),
+              _GoalChip(
+                icon: Icons.archive_outlined,
+                label: 'goals.insights.archived'
+                    .trParams({'count': data.archivedCount.toString()}),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (data.remainingByCurrency.isNotEmpty)
+            _CurrencyBreakdownRow(
+              title: 'goals.insights.remaining_currency'.tr,
+              entries: data.remainingByCurrency.entries.toList(),
+            ),
+          if (data.archivedByCurrency.isNotEmpty)
+            _CurrencyBreakdownRow(
+              title: 'goals.insights.archived_currency'.tr,
+              entries: data.archivedByCurrency.entries.toList(),
+            ),
+          const SizedBox(height: 12),
+          if (data.highlights.isEmpty)
+            Text(
+              'goals.insights.no_active'.tr,
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: Colors.white70),
+            )
+          else ...[
+            Text(
+              'goals.insights.highlights'.tr,
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: Colors.white, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            ...data.highlights.map(
+              (highlight) => Card(
+                color: Colors.white.withOpacity(0.08),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: ListTile(
+                  leading: CircularProgressIndicator(
+                    value: highlight.progress,
+                    strokeWidth: 4,
+                    backgroundColor: Colors.white24,
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      Colors.white,
+                    ),
+                  ),
+                  title: Text(
+                    highlight.name,
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  subtitle: Text(
+                    'goals.insights.deadline'.trParams({
+                          'date': Formatters.shortDate(highlight.deadline),
+                        }) +
+                        ' • ' +
+                        'goals.insights.progress'.trParams({
+                          'percent':
+                              (highlight.progress * 100).clamp(0, 100).toStringAsFixed(0),
+                        }),
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                  trailing: Text(
+                    Formatters.currency(
+                      highlight.remaining,
+                      symbol: highlight.currency,
+                    ),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _GoalChip extends StatelessWidget {
+  const _GoalChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Chip(
+      backgroundColor: Colors.white.withOpacity(0.12),
+      avatar: Icon(icon, color: Colors.white70),
+      label: Text(
+        label,
+        style: const TextStyle(color: Colors.white),
+      ),
+    );
+  }
+}
+
+class _CurrencyBreakdownRow extends StatelessWidget {
+  const _CurrencyBreakdownRow({required this.title, required this.entries});
+
+  final String title;
+  final List<MapEntry<String, double>> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white70,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: entries
+              .map(
+                (entry) => Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    Formatters.currency(
+                      entry.value,
+                      symbol: entry.key,
+                    ),
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+              )
+              .toList(),
+        ),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+}
+
+class _MonthlyOverviewList extends StatelessWidget {
+  const _MonthlyOverviewList({required this.insights});
+
+  final List<WalletInsight> insights;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'insights.overview.title'.tr,
+          style: theme.textTheme.titleMedium,
+        ),
+        const SizedBox(height: 12),
+        ...insights.map(
+          (insight) => Card(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: theme.colorScheme.primary.withOpacity(0.15),
+                foregroundColor: theme.colorScheme.primary,
+                child: const Icon(Icons.wallet),
+              ),
+              title: Text(insight.wallet.name),
+              subtitle: Text(
+                'insights.overview.wallet_summary'.trParams({
+                  'income': Formatters.currency(
+                    insight.income,
+                    symbol: insight.wallet.currency,
+                  ),
+                  'expense': Formatters.currency(
+                    insight.expense,
+                    symbol: insight.wallet.currency,
+                  ),
+                }),
+              ),
+              trailing: Text(
+                Formatters.currency(
+                  insight.net,
+                  symbol: insight.wallet.currency,
+                ),
+                style: TextStyle(
+                  color: insight.net >= 0
+                      ? AppColors.success
+                      : AppColors.danger,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SavingsReportsSection extends StatelessWidget {
+  const _SavingsReportsSection({required this.reports});
+
+  final List<SavingsReport> reports;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'savingsReports.title'.tr,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'savingsReports.subtitle'.tr,
+          style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
+        ),
+        const SizedBox(height: 12),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final itemWidth = constraints.maxWidth * 0.85;
+            return SizedBox(
+              height: 260,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                itemBuilder: (context, index) {
+                  final report = reports[index];
+                  final currency = report.wallet.currency;
+                  final delta = report.deltaVsPrevious;
+                  final deltaKey = delta >= 0
+                      ? 'savingsReports.deltaUp'
+                      : 'savingsReports.deltaDown';
+                  final deltaText = delta.abs() < 1
+                      ? 'savingsReports.deltaStable'.tr
+                      : deltaKey.trParams({
+                          'amount':
+                              Formatters.currency(delta.abs(), symbol: currency),
+                        });
+                  return SizedBox(
+                    width: itemWidth,
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(4),
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              theme.colorScheme.primary.withOpacity(0.9),
+                              theme.colorScheme.primary.withOpacity(0.7),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(28),
+                          boxShadow: [
+                            BoxShadow(
+                              color: theme.colorScheme.primary.withOpacity(0.2),
+                              blurRadius: 18,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              report.wallet.name,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              deltaText,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 4,
+                              children: [
+                                Chip(
+                                  backgroundColor: Colors.white.withOpacity(0.15),
+                                  label: Text(
+                                    'savingsReports.topCategory'.trParams({
+                                      'name': report.topCategoryName,
+                                    }),
+                                    style: const TextStyle(color: Colors.white),
+                                  ),
+                                ),
+                                Chip(
+                                  backgroundColor: Colors.white.withOpacity(0.15),
+                                  label: Text(
+                                    Formatters.currency(
+                                      report.topCategoryAmount,
+                                      symbol: currency,
+                                    ),
+                                    style: const TextStyle(color: Colors.white),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _SavingsMetric(
+                                    label: 'savingsReports.weeklyLabel'.tr,
+                                    value: Formatters.currency(
+                                      report.weeklyAverage,
+                                      symbol: currency,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: _SavingsMetric(
+                                    label: 'savingsReports.projectedLabel'.tr,
+                                    value: Formatters.currency(
+                                      report.projectedExpense,
+                                      symbol: currency,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'savingsReports.tip'.trParams({
+                                'category': report.topCategoryName,
+                                'amount': Formatters.currency(
+                                  report.suggestedCut,
+                                  symbol: currency,
+                                ),
+                              }),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                itemCount: reports.length,
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _SavingsMetric extends StatelessWidget {
+  const _SavingsMetric({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 12,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CashflowSection extends StatelessWidget {
+  const _CashflowSection({required this.cashflows});
+
+  final List<WalletCashflow> cashflows;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'cashflow.title'.tr,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: 'cashflow.info'.tr,
+              onPressed: () {
+                showModalBottomSheet(
+                  context: context,
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(28),
+                    ),
+                  ),
+                  builder: (context) {
+                    return Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Center(
+                            child: Container(
+                              width: 48,
+                              height: 4,
+                              margin: const EdgeInsets.only(bottom: 16),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade300,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          ),
+                          Text(
+                            'cashflow.infoTitle'.tr,
+                            style: theme.textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 12),
+                          ...[
+                            'cashflow.infoIncome',
+                            'cashflow.infoExpense',
+                            'cashflow.infoProjection',
+                          ].map(
+                            (key) => Padding(
+                              padding:
+                                  const EdgeInsets.only(bottom: 12),
+                              child: Row(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(Icons.circle, size: 8),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(key.tr),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+              icon: const Icon(Icons.info_outline),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'cashflow.subtitle'.tr,
+          style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
+        ),
+        const SizedBox(height: 12),
+        ...cashflows.map(
+          (flow) => Card(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          flow.wallet.name,
+                          style: theme.textTheme.titleMedium,
+                        ),
+                      ),
+                      Chip(
+                        label: Text(
+                          'cashflow.remaining'
+                              .trParams({'days': flow.remainingDays.toString()}),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _CashflowMetric(
+                          label: 'cashflow.income'.tr,
+                          value: Formatters.currency(
+                            flow.income,
+                            symbol: flow.wallet.currency,
+                          ),
+                          color: AppColors.success,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _CashflowMetric(
+                          label: 'cashflow.expense'.tr,
+                          value: Formatters.currency(
+                            flow.expense,
+                            symbol: flow.wallet.currency,
+                          ),
+                          color: AppColors.danger,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _CashflowMetric(
+                    label: 'cashflow.projected'.tr,
+                    value: Formatters.currency(
+                      flow.net + flow.projectedNet,
+                      symbol: flow.wallet.currency,
+                    ),
+                    color: flow.net + flow.projectedNet >= 0
+                        ? AppColors.success
+                        : AppColors.danger,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CashflowMetric extends StatelessWidget {
+  const _CashflowMetric({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: Theme.of(context)
+              .textTheme
+              .bodySmall
+              ?.copyWith(color: Colors.grey),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
         ),
       ],
     );

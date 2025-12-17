@@ -1,7 +1,9 @@
 import 'package:get/get.dart';
 
 import '../../core/controllers/locale_controller.dart';
+import '../../core/controllers/security_controller.dart';
 import '../../core/controllers/theme_controller.dart';
+import '../../core/services/backup_service.dart';
 import '../../core/services/network_service.dart';
 import '../../core/services/settings_service.dart';
 import '../../data/local/app_database.dart';
@@ -10,6 +12,7 @@ import '../../data/services/ai_insight_service.dart';
 import '../../data/services/gemini_insight_service.dart';
 import '../../data/services/ocr_service.dart';
 import '../../data/services/voice_entry_service.dart';
+import '../../modules/bills/controllers/bills_controller.dart';
 import '../../modules/dashboard/controllers/dashboard_controller.dart';
 import '../../modules/goals/controllers/goals_controller.dart';
 import '../../modules/insights/controllers/insights_controller.dart';
@@ -20,6 +23,7 @@ import '../../modules/settings/controllers/settings_controller.dart';
 import '../../modules/notifications/controllers/notifications_controller.dart';
 import '../../modules/transactions/controllers/transactions_controller.dart';
 import '../../modules/wallets/controllers/wallets_controller.dart';
+import '../../modules/tasks/controllers/tasks_controller.dart';
 
 class RootBinding extends Bindings {
   @override
@@ -77,7 +81,13 @@ class RootBinding extends Bindings {
       fenix: true,
     );
     Get.lazyPut<SettingsController>(
-      () => SettingsController(Get.find(), themeController, localeController),
+      () => SettingsController(
+        Get.find(),
+        themeController,
+        localeController,
+        Get.find<BackupService>(),
+        Get.find<SecurityController>(),
+      ),
       fenix: true,
     );
     Get.lazyPut<RemindersController>(
@@ -86,6 +96,14 @@ class RootBinding extends Bindings {
     );
     Get.lazyPut<NotificationsController>(
       () => NotificationsController(Get.find()),
+      fenix: true,
+    );
+    Get.lazyPut<BillsController>(
+      () => BillsController(Get.find()),
+      fenix: true,
+    );
+    Get.lazyPut<TasksController>(
+      () => TasksController(Get.find()),
       fenix: true,
     );
   }

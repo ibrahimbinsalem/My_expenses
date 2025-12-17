@@ -105,12 +105,14 @@ Future<void> _openReminderSheet(
   RemindersController controller, {
   ReminderModel? reminder,
 }) async {
-  final messageController = TextEditingController(text: reminder?.message ?? '');
+  var message = reminder?.message ?? '';
   var selectedDate = reminder?.date ?? DateTime.now();
   var selectedTime = reminder != null
       ? _parseTime(reminder.time)
       : const TimeOfDay(hour: 8, minute: 0);
 
+  if (!context.mounted) return;
+  final navigator = Navigator.of(context);
   await showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -153,11 +155,12 @@ Future<void> _openReminderSheet(
                     ),
                   ),
                   const SizedBox(height: 12),
-                  TextField(
-                    controller: messageController,
+                  TextFormField(
+                    initialValue: message,
                     decoration: InputDecoration(
                       labelText: 'settings.reminders.message_label'.tr,
                     ),
+                    onChanged: (value) => message = value,
                   ),
                   const SizedBox(height: 12),
                   ListTile(
@@ -201,16 +204,15 @@ Future<void> _openReminderSheet(
                       Expanded(
                         child: ElevatedButton(
                           onPressed: () async {
-                            final navigator = Navigator.of(context);
                             final success = reminder == null
                                 ? await controller.addReminder(
-                                    message: messageController.text,
+                                    message: message,
                                     date: selectedDate,
                                     time: selectedTime,
                                   )
                                 : await controller.updateReminder(
                                     reminder: reminder,
-                                    message: messageController.text,
+                                    message: message,
                                     date: selectedDate,
                                     time: selectedTime,
                                   );
@@ -242,7 +244,6 @@ Future<void> _openReminderSheet(
       );
     },
   );
-  messageController.dispose();
 }
 
 TimeOfDay _parseTime(String value) {

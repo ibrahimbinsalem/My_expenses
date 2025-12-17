@@ -26,6 +26,21 @@ class NotificationsController extends GetxController {
     }
   }
 
+  Future<void> markAsRead(NotificationLogModel log) async {
+    if (log.id == null || log.isRead) return;
+    await _repository.markNotificationAsRead(log.id!);
+    final index = notifications.indexWhere((item) => item.id == log.id);
+    if (index != -1) {
+      notifications[index] = log.copyWith(isRead: true);
+    }
+  }
+
+  Future<void> deleteNotification(NotificationLogModel log) async {
+    if (log.id == null) return;
+    await _repository.deleteNotification(log.id!);
+    notifications.removeWhere((item) => item.id == log.id);
+  }
+
   Future<void> markAllAsRead() async {
     await _repository.markAllNotificationsAsRead();
     await fetchNotifications();

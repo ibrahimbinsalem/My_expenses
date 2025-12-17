@@ -1,27 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/constants/category_icons.dart';
 import '../../../core/controllers/locale_controller.dart';
+import '../../../core/controllers/security_controller.dart';
 import '../../../core/controllers/theme_controller.dart';
+import '../../../core/services/auto_backup_service.dart';
+import '../../../core/services/backup_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/services/settings_service.dart';
 import '../../../data/models/category_model.dart';
 import '../../../data/models/currency_model.dart';
 import '../../../data/models/user_model.dart';
 import '../../../data/repositories/local_expense_repository.dart';
+import '../../../modules/dashboard/controllers/dashboard_controller.dart';
 import '../../insights/controllers/insights_controller.dart';
+import '../../transactions/controllers/transactions_controller.dart';
+import '../../wallets/controllers/wallets_controller.dart';
 
 class SettingsController extends GetxController {
   SettingsController(
     this._repository,
     this._themeController,
     this._localeController,
+    this._backupService,
+    this._securityController,
   ) : _settingsService = Get.find<SettingsService>();
 
   final LocalExpenseRepository _repository;
   final ThemeController _themeController;
   final LocaleController _localeController;
+  final BackupService _backupService;
+  final SecurityController _securityController;
   final SettingsService _settingsService;
   final NotificationService _notificationService = Get.find();
 
@@ -36,6 +47,14 @@ class SettingsController extends GetxController {
   final monthlyBudget = 3000.0.obs;
   final aiInsightsEnabled = true.obs;
   final notificationsEnabled = true.obs;
+  final appLockEnabled = false.obs;
+  final textScale = 1.0.obs;
+  final backups = <BackupEntry>[].obs;
+  final isExportingBackup = false.obs;
+  final isRestoringBackup = false.obs;
+  final autoBackupEnabled = false.obs;
+  final autoBackupFrequency = 'weekly'.obs;
+  final lastAutoBackup = Rxn<DateTime>();
   static const List<String> _avatarEmojis = [
     '🙂',
     '🤩',
@@ -96,6 +115,20 @@ class SettingsController extends GetxController {
     budgetController.text = monthlyBudget.value.toStringAsFixed(0);
     aiInsightsEnabled.value = _settingsService.aiInsightsEnabled;
     notificationsEnabled.value = _settingsService.notificationsEnabled;
+    textScale.value = _settingsService.textScaleFactor;
+    appLockEnabled.value = _securityController.isLockEnabled.value;
+    autoBackupEnabled.value = _settingsService.autoBackupEnabled;
+    autoBackupFrequency.value = _settingsService.autoBackupFrequency;
+    lastAutoBackup.value = _settingsService.lastAutoBackup;
+    ever<DateTime?>(
+      _settingsService.lastAutoBackupNotifier,
+      (value) => lastAutoBackup.value = value,
+    );
+    ever<bool>(
+      _securityController.isLockEnabled,
+      (enabled) => appLockEnabled.value = enabled,
+    );
+    refreshBackups();
   }
 
   Future<void> loadCategories() async {
@@ -176,6 +209,77 @@ class SettingsController extends GetxController {
     await loadCurrencies();
   }
 
+  void updateTextScaling(double value) {
+    final clamped = value.clamp(0.8, 1.4);
+    textScale.value = clamped;
+    _settingsService.setTextScale(clamped);
+  }
+
+  Future<void> refreshBackups() async {
+    backups.assignAll(await _backupService.listBackups());
+  }
+
+  SecurityController get securityController => _securityController;
+
+  AutoBackupService? get _autoBackupService =>
+      Get.isRegistered<AutoBackupService>()
+          ? Get.find<AutoBackupService>()
+          : null;
+
+  Future<bool> toggleBiometricLock(bool value) {
+    return _securityController.toggleBiometrics(value);
+  }
+
+  Future<BackupEntry?> exportBackup({String? label}) async {
+    try {
+      isExportingBackup.value = true;
+      final entry = await _backupService.createBackup(label: label);
+      final now = DateTime.now();
+      await _settingsService.setLastAutoBackup(now);
+      lastAutoBackup.value = now;
+      await refreshBackups();
+      return entry;
+    } finally {
+      isExportingBackup.value = false;
+    }
+  }
+
+  Future<bool> restoreBackup(BackupEntry entry) async {
+    try {
+      isRestoringBackup.value = true;
+      await _backupService.importBackup(entry.path);
+      await _reloadDataAfterRestore();
+      await refreshBackups();
+      return true;
+    } catch (_) {
+      return false;
+    } finally {
+      isRestoringBackup.value = false;
+    }
+  }
+
+  Future<bool> restoreBackupFromPath(String path) async {
+    try {
+      isRestoringBackup.value = true;
+      await _backupService.importBackup(path);
+      await _reloadDataAfterRestore();
+      await refreshBackups();
+      return true;
+    } catch (_) {
+      return false;
+    } finally {
+      isRestoringBackup.value = false;
+    }
+  }
+
+  Future<bool> deleteBackup(BackupEntry entry) async {
+    final success = await _backupService.deleteBackup(entry.path);
+    if (success) {
+      await refreshBackups();
+    }
+    return success;
+  }
+
   Future<void> toggleAiInsights(bool value) async {
     aiInsightsEnabled.value = value;
     await _settingsService.setAiInsightsEnabled(value);
@@ -191,6 +295,24 @@ class SettingsController extends GetxController {
       await _notificationService.rescheduleAllReminders();
     } else {
       await _notificationService.cancelAllReminderNotifications();
+    }
+  }
+
+  Future<void> toggleAutoBackup(bool value) async {
+    autoBackupEnabled.value = value;
+    await _settingsService.setAutoBackupEnabled(value);
+    final service = _autoBackupService;
+    if (service != null) {
+      await service.refreshSchedule(runImmediate: value);
+    }
+  }
+
+  Future<void> updateAutoBackupFrequency(String value) async {
+    autoBackupFrequency.value = value;
+    await _settingsService.setAutoBackupFrequency(value);
+    final service = _autoBackupService;
+    if (service != null) {
+      await service.refreshSchedule();
     }
   }
 
@@ -238,5 +360,51 @@ class SettingsController extends GetxController {
     categoryNameController.dispose();
     budgetController.dispose();
     super.onClose();
+  }
+
+  Future<bool> enableAppLock(String pin) async {
+    final success = await _securityController.enableLock(pin);
+    if (success) {
+      appLockEnabled.value = true;
+    }
+    return success;
+  }
+
+  Future<bool> disableAppLock(String currentPin) async {
+    final success = await _securityController.disableLock(currentPin);
+    if (success) {
+      appLockEnabled.value = false;
+    }
+    return success;
+  }
+
+  Future<bool> changeAppLockPin(String currentPin, String newPin) async {
+    return _securityController.changePin(currentPin, newPin);
+  }
+
+  void lockAppNow() {
+    _securityController.lockNow();
+  }
+
+  String formatBackupDate(DateTime date) {
+    return DateFormat('y/MM/dd – HH:mm').format(date);
+  }
+
+  Future<void> _reloadDataAfterRestore() async {
+    await loadCategories();
+    await loadCurrencies();
+    await loadUser();
+    if (Get.isRegistered<DashboardController>()) {
+      await Get.find<DashboardController>().loadDashboard();
+    }
+    if (Get.isRegistered<WalletsController>()) {
+      await Get.find<WalletsController>().fetchWallets();
+    }
+    if (Get.isRegistered<TransactionsController>()) {
+      await Get.find<TransactionsController>().loadFormData();
+    }
+    if (Get.isRegistered<InsightsController>()) {
+      await Get.find<InsightsController>().loadInsights();
+    }
   }
 }

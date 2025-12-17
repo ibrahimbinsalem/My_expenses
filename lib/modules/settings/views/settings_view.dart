@@ -1,5 +1,12 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
+import 'package:my_expenses/core/services/backup_service.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../core/config/api_keys.dart';
 import '../../../core/constants/app_colors.dart';
@@ -19,12 +26,16 @@ class SettingsView extends GetView<SettingsController> {
         children: [
           _ProfileCard(controller: controller),
           _ThemeCard(controller: controller),
+          _TextScaleCard(controller: controller),
           _BudgetCard(controller: controller),
           _LanguageCard(controller: controller),
           _CurrenciesCard(controller: controller),
           _AiSettingsCard(controller: controller),
           _ReminderCard(controller: controller),
           _SecurityBackupCard(controller: controller),
+          const _BillBookLink(),
+          const _RecurringTasksLink(),
+          const _HelpCard(),
           const _NotificationsLink(),
           const _CategoryLink(),
         ],
@@ -150,8 +161,9 @@ class _SecurityBackupCard extends StatelessWidget {
                 children: [
                   Text(
                     'securityBiometricPermissionsTitle'.tr,
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: Colors.grey[700]),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: Colors.grey[700],
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Wrap(
@@ -252,6 +264,20 @@ class _SecurityBackupCard extends StatelessWidget {
                 icon: const Icon(Icons.history_outlined),
                 label: Text('backupRestoreAction'.tr),
               ),
+              OutlinedButton.icon(
+                onPressed: controller.backups.isEmpty
+                    ? null
+                    : () => _shareLatestBackup(context),
+                icon: const Icon(Icons.ios_share),
+                label: Text('backupShareAction'.tr),
+              ),
+              OutlinedButton.icon(
+                onPressed: controller.backups.isEmpty
+                    ? null
+                    : () => _showBackupHistory(context),
+                icon: const Icon(Icons.library_books_outlined),
+                label: Text('backupHistoryAction'.tr),
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -269,6 +295,65 @@ class _SecurityBackupCard extends StatelessWidget {
               ).textTheme.bodySmall?.copyWith(color: Colors.grey),
             ),
           ),
+          const Divider(height: 32),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            value: controller.autoBackupEnabled.value,
+            title: Text('backupAutoToggle'.tr),
+            subtitle: Text('backupAutoHint'.tr),
+            onChanged: (value) => controller.toggleAutoBackup(value),
+          ),
+          if (controller.autoBackupEnabled.value)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  DropdownButtonFormField<String>(
+                    value: controller.autoBackupFrequency.value,
+                    decoration: InputDecoration(
+                      labelText: 'backupAutoFrequencyLabel'.tr,
+                      border: const OutlineInputBorder(),
+                    ),
+                    items: [
+                      DropdownMenuItem(
+                        value: 'daily',
+                        child: Text('backupAutoFrequency.daily'.tr),
+                      ),
+                      DropdownMenuItem(
+                        value: 'weekly',
+                        child: Text('backupAutoFrequency.weekly'.tr),
+                      ),
+                      DropdownMenuItem(
+                        value: 'monthly',
+                        child: Text('backupAutoFrequency.monthly'.tr),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        controller.updateAutoBackupFrequency(value);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text(
+                      controller.lastAutoBackup.value == null
+                          ? 'backupAutoNever'.tr
+                          : 'backupAutoLast'.trParams({
+                              'date': DateFormat(
+                                'dd MMM yyyy • HH:mm',
+                              ).format(controller.lastAutoBackup.value!),
+                            }),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: Colors.grey),
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       );
     });
@@ -319,12 +404,21 @@ class _SecurityBackupCard extends StatelessWidget {
 
   Future<void> _handleBiometricToggle(BuildContext context, bool value) async {
     if (value) {
+      await controller.securityController.refreshBiometricStatus();
       if (!controller.securityController.isBiometricAvailable.value) {
         Get.snackbar('common.alert'.tr, 'securityBiometricEnrollHint'.tr);
         return;
       }
-      final confirmed =
-          await controller.securityController.authenticateWithBiometrics();
+      final confirmed = await controller.securityController
+          .authenticateForSetup();
+      if (!confirmed) {
+        debugPrint(
+          'Biometric confirmation failed while enabling lock: '
+          '${controller.securityController.lastBiometricError}',
+        );
+        Get.snackbar('common.alert'.tr, 'securityBiometricConfirmFailed'.tr);
+        return;
+      }
     }
     final success = await controller.toggleBiometricLock(value);
     if (!success) {
@@ -338,8 +432,72 @@ class _SecurityBackupCard extends StatelessWidget {
     await _handleLockToggle(context, false);
   }
 
+  Future<String?> _promptBackupName(BuildContext context) async {
+    String name = '';
+    String? errorText;
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            void submit() {
+              final value = name.trim();
+              if (value.isEmpty) {
+                setState(() => errorText = 'backupNameRequired'.tr);
+                return;
+              }
+              Navigator.of(dialogContext).pop(value);
+            }
+
+            return AlertDialog(
+              title: Text('backupNameTitle'.tr),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('backupNameDescription'.tr),
+                  const SizedBox(height: 12),
+                  TextField(
+                    autofocus: true,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => submit(),
+                    onChanged: (value) {
+                      name = value;
+                      if (errorText != null && errorText!.isNotEmpty) {
+                        setState(() => errorText = null);
+                      }
+                    },
+                    decoration: InputDecoration(
+                      labelText: 'backupNameLabel'.tr,
+                      hintText: 'backupNameHint'.tr,
+                      helperText: 'backupNameHelper'.tr,
+                      errorText: errorText,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: Text('common.cancel'.tr),
+                ),
+                FilledButton(
+                  onPressed: submit,
+                  child: Text('common.save'.tr),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    return result;
+  }
+
   Future<void> _exportBackup(BuildContext context) async {
-    final entry = await controller.exportBackup();
+    final label = await _promptBackupName(context);
+    if (label == null) return;
+    final entry = await controller.exportBackup(label: label);
     if (entry != null) {
       Get.snackbar(
         'common.success'.tr,
@@ -388,48 +546,83 @@ class _SecurityBackupCard extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 8),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.folder_open),
+                  title: Text('backupRestoreCustom'.tr),
+                  onTap: () async {
+                    Navigator.of(context).pop();
+                    await _restoreCustomBackup(context);
+                  },
+                ),
+                const Divider(),
                 Flexible(
                   child: ListView.separated(
                     shrinkWrap: true,
                     itemBuilder: (context, index) {
                       final entry = entries[index];
-                      return ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.storage_rounded),
-                        title: Text(entry.name),
-                        subtitle: Text(
-                          '${controller.formatBackupDate(entry.createdAt)} • ${entry.formattedSize}',
-                        ),
-                        trailing: TextButton(
-                          onPressed: controller.isRestoringBackup.value
-                              ? null
-                              : () async {
-                                  final success = await controller
-                                      .restoreBackup(entry);
-                                  if (!context.mounted) return;
-                                  if (success) {
-                                    Get.back();
-                                    Get.snackbar(
-                                      'common.success'.tr,
-                                      'backupRestoreSuccess'.tr,
-                                    );
-                                  } else {
-                                    Get.snackbar(
-                                      'common.alert'.tr,
-                                      'backupRestoreError'.tr,
-                                    );
-                                  }
-                                },
-                          child: controller.isRestoringBackup.value
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : Text('backupRestoreButton'.tr),
-                        ),
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(Icons.storage_rounded),
+                            title: Text(entry.name),
+                            subtitle: Text(
+                              '${controller.formatBackupDate(entry.createdAt)} • ${entry.formattedSize}',
+                            ),
+                          ),
+                          Align(
+                            alignment: AlignmentDirectional.centerEnd,
+                            child: Wrap(
+                              spacing: 4,
+                              children: [
+                                IconButton(
+                                  tooltip: 'backupOpenFolderTooltip'.tr,
+                                  icon: const Icon(Icons.folder_open_outlined),
+                                  onPressed: () =>
+                                      _openBackupFolder(context, entry),
+                                ),
+                                IconButton(
+                                  tooltip: 'backupShareEntryTooltip'.tr,
+                                  icon: const Icon(Icons.ios_share),
+                                  onPressed: () =>
+                                      _shareBackupEntry(context, entry),
+                                ),
+                                TextButton(
+                                  onPressed: controller.isRestoringBackup.value
+                                      ? null
+                                      : () async {
+                                          final success = await controller
+                                              .restoreBackup(entry);
+                                          if (!context.mounted) return;
+                                          if (success) {
+                                            Get.back();
+                                            Get.snackbar(
+                                              'common.success'.tr,
+                                              'backupRestoreSuccess'.tr,
+                                            );
+                                          } else {
+                                            Get.snackbar(
+                                              'common.alert'.tr,
+                                              'backupRestoreError'.tr,
+                                            );
+                                          }
+                                        },
+                                  child: controller.isRestoringBackup.value
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : Text('backupRestoreButton'.tr),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       );
                     },
                     separatorBuilder: (_, __) => const Divider(),
@@ -442,6 +635,236 @@ class _SecurityBackupCard extends StatelessWidget {
         });
       },
     );
+  }
+
+  Future<void> _showBackupHistory(BuildContext context) async {
+    await controller.refreshBackups();
+    if (controller.backups.isEmpty) {
+      Get.snackbar('common.alert'.tr, 'backupNone'.tr);
+      return;
+    }
+    if (!context.mounted) return;
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (context) {
+        return Obx(() {
+          final history = controller.backups;
+          final theme = Theme.of(context);
+          return SafeArea(
+            child: Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                  Text(
+                    'backupHistoryTitle'.tr,
+                    style: theme.textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 16),
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemBuilder: (context, index) {
+                        final entry = history[index];
+                        return Card(
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  entry.name,
+                                  style: theme.textTheme.titleMedium,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${controller.formatBackupDate(entry.createdAt)} • ${entry.formattedSize}',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'backupPathLabel'.tr,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.primary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                SelectableText(
+                                  entry.path,
+                                  style: theme.textTheme.bodySmall,
+                                ),
+                                const SizedBox(height: 12),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    IconButton(
+                                      tooltip: 'backupOpenFolderTooltip'.tr,
+                                      icon: const Icon(
+                                        Icons.folder_open_outlined,
+                                      ),
+                                      onPressed: () =>
+                                          _openBackupFolder(context, entry),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'backupShareEntryTooltip'.tr,
+                                      icon: const Icon(Icons.ios_share),
+                                      onPressed: () =>
+                                          _shareBackupEntry(context, entry),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'backupDeleteAction'.tr,
+                                      icon: Icon(
+                                        Icons.delete_outline,
+                                        color: theme.colorScheme.error,
+                                      ),
+                                      onPressed: () =>
+                                          _confirmDeleteBackup(context, entry),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemCount: history.length,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        });
+      },
+    );
+  }
+
+  Future<void> _shareLatestBackup(BuildContext context) async {
+    await controller.refreshBackups();
+    final latest = controller.backups.isEmpty ? null : controller.backups.first;
+    if (latest == null) {
+      Get.snackbar('common.alert'.tr, 'backupNone'.tr);
+      return;
+    }
+    try {
+      await Share.shareXFiles(
+        [XFile(latest.path)],
+        text: 'backupShareHint'.trParams({'name': latest.name}),
+        subject: 'backupShareSubject'.tr,
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      Get.snackbar('common.alert'.tr, 'backupShareError'.tr);
+    }
+  }
+
+  Future<void> _shareBackupEntry(
+    BuildContext context,
+    BackupEntry entry,
+  ) async {
+    try {
+      await Share.shareXFiles(
+        [XFile(entry.path)],
+        text: 'backupShareHint'.trParams({'name': entry.name}),
+        subject: 'backupShareSubject'.tr,
+      );
+    } catch (e) {
+      debugPrint('Share backup error: $e');
+      if (!context.mounted) return;
+      Get.snackbar('common.alert'.tr, 'backupShareError'.tr);
+    }
+  }
+
+  Future<void> _openBackupFolder(
+    BuildContext context,
+    BackupEntry entry,
+  ) async {
+    final directoryPath = File(entry.path).parent.path;
+    final result = await OpenFilex.open(directoryPath);
+    if (result.type != ResultType.done) {
+      debugPrint('Open backup folder error: ${result.message}');
+      if (!context.mounted) return;
+      Get.snackbar('common.alert'.tr, 'backupOpenFolderError'.tr);
+    }
+  }
+
+  Future<void> _confirmDeleteBackup(
+    BuildContext context,
+    BackupEntry entry,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('backupDeleteAction'.tr),
+          content: Text('backupDeleteConfirm'.tr),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text('common.cancel'.tr),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text('common.confirm'.tr),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true) return;
+    final success = await controller.deleteBackup(entry);
+    if (!context.mounted) return;
+    if (success) {
+      Get.snackbar('common.success'.tr, 'backupDeleteSuccess'.tr);
+    } else {
+      Get.snackbar('common.alert'.tr, 'backupDeleteError'.tr);
+    }
+  }
+
+  Future<void> _restoreCustomBackup(BuildContext context) async {
+    final result = await FilePicker.platform.pickFiles(
+      dialogTitle: 'backupCustomPicker'.tr,
+      type: FileType.custom,
+      allowedExtensions: const ['db'],
+    );
+    final path = result?.files.singleOrNull?.path;
+    if (path == null) return;
+    final success = await controller.restoreBackupFromPath(path);
+    if (!context.mounted) return;
+    if (success) {
+      Get.snackbar('common.success'.tr, 'backupRestoreSuccess'.tr);
+    } else {
+      Get.snackbar('common.alert'.tr, 'backupRestoreError'.tr);
+    }
   }
 
   Future<String?> _showPinEntrySheet(
@@ -1158,6 +1581,67 @@ class _ThemeCard extends StatelessWidget {
   }
 }
 
+class _TextScaleCard extends StatelessWidget {
+  const _TextScaleCard({required this.controller});
+
+  final SettingsController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final scale = controller.textScale.value;
+      return _SettingsSection(
+        icon: Icons.format_size,
+        title: 'settings.textscale.title'.tr,
+        subtitle: 'settings.textscale.subtitle'.tr,
+        children: [
+          Row(
+            children: [
+              Text(
+                'settings.textscale.preview'.tr,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${(scale * 100).round()}%',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Slider(
+            value: scale,
+            min: 0.8,
+            max: 1.4,
+            divisions: 6,
+            label: '${(scale * 100).round()}%',
+            onChanged: controller.updateTextScaling,
+          ),
+          Text(
+            'settings.textscale.helper'.tr,
+            style: const TextStyle(color: Colors.grey),
+          ),
+        ],
+      );
+    });
+  }
+}
+
 class _CurrenciesCard extends StatelessWidget {
   const _CurrenciesCard({required this.controller});
 
@@ -1412,6 +1896,134 @@ class _ReminderCard extends StatelessWidget {
   }
 }
 
+class _HelpCard extends StatelessWidget {
+  const _HelpCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final tips = [
+      'settings.help.tip_wallets'.tr,
+      'settings.help.tip_goals'.tr,
+      'settings.help.tip_backup'.tr,
+    ];
+    return _SettingsSection(
+      icon: Icons.info_outline,
+      title: 'settings.help.title'.tr,
+      subtitle: 'settings.help.subtitle'.tr,
+      children: [
+        ...tips.map(
+          (tip) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.check_circle_outline,
+                  size: 18,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    tip,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () => _showHelpSheet(context),
+            icon: const Icon(Icons.menu_book_outlined),
+            label: Text('settings.help.cta'.tr),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showHelpSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (context) {
+        final theme = Theme.of(context);
+        final moreTips = [
+          'settings.help.detail_wallets'.tr,
+          'settings.help.detail_ai'.tr,
+          'settings.help.detail_security'.tr,
+          'settings.help.detail_support'.tr,
+        ];
+        return Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              Text(
+                'settings.help.sheet_title'.tr,
+                style: theme.textTheme.titleLarge,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'settings.help.sheet_desc'.tr,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: Colors.grey[600],
+                ),
+              ),
+              const SizedBox(height: 16),
+              ...moreTips.map(
+                (tip) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        size: 18,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(tip, style: theme.textTheme.bodyMedium),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text('common.ok'.tr),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _NotificationsLink extends StatelessWidget {
   const _NotificationsLink();
 
@@ -1451,6 +2063,52 @@ class _CategoryLink extends StatelessWidget {
             onPressed: () => Get.toNamed(AppRoutes.categorySettings),
             icon: const Icon(Icons.tune),
             label: Text('settings.categories.manage_btn'.tr),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BillBookLink extends StatelessWidget {
+  const _BillBookLink();
+
+  @override
+  Widget build(BuildContext context) {
+    return _SettingsSection(
+      icon: Icons.receipt_long,
+      title: 'billBook.sectionTitle'.tr,
+      subtitle: 'billBook.sectionSubtitle'.tr,
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () => Get.toNamed(AppRoutes.billBook),
+            icon: const Icon(Icons.open_in_new),
+            label: Text('billBook.open'.tr),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RecurringTasksLink extends StatelessWidget {
+  const _RecurringTasksLink();
+
+  @override
+  Widget build(BuildContext context) {
+    return _SettingsSection(
+      icon: Icons.repeat_on,
+      title: 'tasks.sectionTitle'.tr,
+      subtitle: 'tasks.sectionSubtitle'.tr,
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () => Get.toNamed(AppRoutes.tasks),
+            icon: const Icon(Icons.open_in_new),
+            label: Text('tasks.open'.tr),
           ),
         ),
       ],

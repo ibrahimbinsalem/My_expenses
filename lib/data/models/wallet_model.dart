@@ -6,6 +6,7 @@ class WalletModel {
   final double balance;
   final String currency;
   final DateTime createdAt;
+  final bool isGoal;
 
   const WalletModel({
     this.id,
@@ -15,6 +16,7 @@ class WalletModel {
     required this.balance,
     required this.currency,
     required this.createdAt,
+    this.isGoal = false,
   });
 
   WalletModel copyWith({
@@ -25,6 +27,7 @@ class WalletModel {
     double? balance,
     String? currency,
     DateTime? createdAt,
+    bool? isGoal,
   }) {
     return WalletModel(
       id: id ?? this.id,
@@ -34,6 +37,7 @@ class WalletModel {
       balance: balance ?? this.balance,
       currency: currency ?? this.currency,
       createdAt: createdAt ?? this.createdAt,
+      isGoal: isGoal ?? this.isGoal,
     );
   }
 
@@ -46,6 +50,7 @@ class WalletModel {
       balance: (map['balance'] as num?)?.toDouble() ?? 0,
       currency: map['currency'] as String? ?? 'SAR',
       createdAt: DateTime.parse(map['created_at'] as String),
+      isGoal: (map['is_goal'] as int? ?? 0) == 1,
     );
   }
 
@@ -58,6 +63,7 @@ class WalletModel {
       'balance': balance,
       'currency': currency,
       'created_at': createdAt.toIso8601String(),
+      'is_goal': isGoal ? 1 : 0,
     };
   }
 }

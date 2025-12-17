@@ -14,6 +14,7 @@ class AppTheme {
       ),
       useMaterial3: true,
       textTheme: AppTypography.textTheme,
+      visualDensity: VisualDensity.adaptivePlatformDensity,
     );
 
     return base.copyWith(
@@ -28,7 +29,7 @@ class AppTheme {
         color: Colors.white,
         elevation: 0,
         margin: const EdgeInsets.all(8),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
       ),
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
         backgroundColor: AppColors.primary,
@@ -44,6 +45,28 @@ class AppTheme {
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 12,
+        ),
+      ),
+      chipTheme: base.chipTheme.copyWith(
+        labelStyle: AppTypography.textTheme.labelLarge,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        backgroundColor: AppColors.surface,
+      ),
+      listTileTheme: const ListTileThemeData(
+        contentPadding: EdgeInsets.zero,
+      ),
+      switchTheme: base.switchTheme.copyWith(
+        thumbColor: WidgetStatePropertyAll(AppColors.primary),
+        trackColor: WidgetStatePropertyAll(AppColors.primary.withOpacity(0.3)),
+      ),
+      dialogTheme: DialogThemeData(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      ),
+
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
       ),
     );
@@ -77,7 +100,7 @@ class AppTheme {
         color: const Color(0xFF162336),
         elevation: 0,
         margin: const EdgeInsets.all(8),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
       ),
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
         backgroundColor: AppColors.secondary,
@@ -93,6 +116,30 @@ class AppTheme {
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 12,
+        ),
+      ),
+      chipTheme: base.chipTheme.copyWith(
+        backgroundColor: const Color(0xFF1F2D40),
+        labelStyle: AppTypography.textTheme.labelLarge?.copyWith(
+          color: Colors.white,
+        ),
+      ),
+      listTileTheme: const ListTileThemeData(
+        contentPadding: EdgeInsets.zero,
+      ),
+      switchTheme: base.switchTheme.copyWith(
+        thumbColor: const WidgetStatePropertyAll(AppColors.secondary),
+        trackColor:
+            WidgetStatePropertyAll(AppColors.secondary.withOpacity(0.25)),
+      ),
+      dialogTheme: DialogThemeData(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        backgroundColor: const Color(0xFF1A2537),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: Color(0xFF162336),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
       ),
     );

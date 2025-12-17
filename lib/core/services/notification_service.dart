@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -17,6 +18,8 @@ class NotificationService extends GetxService {
   late final LocalExpenseRepository _repository;
   late final SettingsService _settingsService;
   bool _initialized = false;
+  bool _customSoundAvailable = true;
+  bool _exactAlarmAllowed = true;
 
   static const _reminderChannelId = 'reminders_channel';
   static const _reminderChannelName = 'Reminders';
@@ -31,9 +34,13 @@ class NotificationService extends GetxService {
     }
     await _configureTimezone();
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const iosInit = DarwinInitializationSettings();
+    const iosInit = DarwinInitializationSettings(
+      defaultPresentAlert: true,
+      defaultPresentBadge: true,
+      defaultPresentSound: true,
+    );
     await _plugin.initialize(
-      const InitializationSettings(android: androidInit, iOS: iosInit),
+      InitializationSettings(android: androidInit, iOS: iosInit),
       onDidReceiveNotificationResponse: _onNotificationResponse,
     );
     await _requestPermissions();
@@ -43,7 +50,26 @@ class NotificationService extends GetxService {
 
   Future<void> _configureTimezone() async {
     tz.initializeTimeZones();
-    tz.setLocalLocation(tz.getLocation(DateTime.now().timeZoneName));
+    final zoneName = DateTime.now().timeZoneName;
+    try {
+      tz.setLocalLocation(tz.getLocation(zoneName));
+      return;
+    } catch (_) {
+      final offset = DateTime.now().timeZoneOffset;
+      final hours = offset.inHours;
+      if (hours == 0) {
+        tz.setLocalLocation(tz.getLocation('UTC'));
+        return;
+      }
+      final sign = hours >= 0 ? '-' : '+';
+      final locationName = 'Etc/GMT$sign${hours.abs()}';
+      try {
+        tz.setLocalLocation(tz.getLocation(locationName));
+        return;
+      } catch (_) {
+        tz.setLocalLocation(tz.getLocation('UTC'));
+      }
+    }
   }
 
   Future<void> _requestPermissions() async {
@@ -62,20 +88,24 @@ class NotificationService extends GetxService {
         ?.requestPermissions(alert: true, badge: true, sound: true);
   }
 
-  NotificationDetails _buildReminderDetails() {
-    const android = AndroidNotificationDetails(
+  NotificationDetails _buildReminderDetails({bool useCustomSound = true}) {
+    final android = AndroidNotificationDetails(
       _reminderChannelId,
       _reminderChannelName,
       channelDescription: _reminderChannelDescription,
       importance: Importance.max,
       priority: Priority.high,
+      playSound: true,
+      sound: useCustomSound && _customSoundAvailable
+          ? RawResourceAndroidNotificationSound('reminder_tone')
+          : null,
     );
     const ios = DarwinNotificationDetails(
       presentAlert: true,
       presentBadge: true,
       presentSound: true,
     );
-    return const NotificationDetails(android: android, iOS: ios);
+    return NotificationDetails(android: android, iOS: ios);
   }
 
   Future<void> scheduleReminder(
@@ -98,15 +128,61 @@ class NotificationService extends GetxService {
         ),
       );
     }
-    await _plugin.zonedSchedule(
-      reminder.id!,
-      title,
-      body,
-      scheduledDate,
-      _buildReminderDetails(),
-      payload: logId?.toString(),
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-    );
+    Future<void> schedule({
+      required AndroidScheduleMode mode,
+      bool customSound = true,
+    }) async {
+      await _plugin.zonedSchedule(
+        reminder.id!,
+        title,
+        body,
+        scheduledDate,
+        _buildReminderDetails(useCustomSound: customSound),
+        payload: logId?.toString(),
+        androidScheduleMode: mode,
+      );
+    }
+
+    try {
+      await schedule(
+        mode: _exactAlarmAllowed
+            ? AndroidScheduleMode.exactAllowWhileIdle
+            : AndroidScheduleMode.inexactAllowWhileIdle,
+      );
+    } on PlatformException catch (e) {
+      if (e.code == 'invalid_sound' && _customSoundAvailable) {
+        _customSoundAvailable = false;
+        await schedule(
+          mode: _exactAlarmAllowed
+              ? AndroidScheduleMode.exactAllowWhileIdle
+              : AndroidScheduleMode.inexactAllowWhileIdle,
+          customSound: false,
+        );
+      } else if (e.code == 'exact_alarms_not_permitted' && _exactAlarmAllowed) {
+        final granted = await _requestExactAlarmPermission();
+        if (granted) {
+          await schedule(
+            mode: AndroidScheduleMode.exactAllowWhileIdle,
+            customSound: _customSoundAvailable,
+          );
+        } else {
+          _exactAlarmAllowed = false;
+          await schedule(mode: AndroidScheduleMode.inexactAllowWhileIdle);
+        }
+      } else {
+        rethrow;
+      }
+    }
+  }
+
+  Future<bool> _requestExactAlarmPermission() async {
+    final androidPlugin = _plugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+    if (androidPlugin == null) return false;
+    final granted = await androidPlugin.requestExactAlarmsPermission();
+    _exactAlarmAllowed = granted ?? false;
+    return _exactAlarmAllowed;
   }
 
   Future<void> cancelReminder(int id) async {

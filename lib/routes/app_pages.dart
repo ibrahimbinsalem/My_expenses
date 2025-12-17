@@ -1,5 +1,6 @@
 import 'package:get/get.dart';
 
+import '../modules/bills/views/bills_view.dart';
 import '../modules/dashboard/views/dashboard_view.dart';
 import '../modules/goals/views/goals_view.dart';
 import '../modules/insights/views/insights_view.dart';
@@ -12,6 +13,7 @@ import '../modules/settings/views/settings_view.dart';
 import '../modules/notifications/views/notifications_view.dart';
 import '../modules/transactions/views/add_transaction_view.dart';
 import '../modules/wallets/views/wallets_view.dart';
+import '../modules/tasks/views/tasks_view.dart';
 import 'app_routes.dart';
 
 class AppPages {
@@ -44,6 +46,14 @@ class AppPages {
     GetPage(
       name: AppRoutes.notifications,
       page: () => const NotificationsView(),
+    ),
+    GetPage(
+      name: AppRoutes.billBook,
+      page: () => const BillsView(),
+    ),
+    GetPage(
+      name: AppRoutes.tasks,
+      page: () => const TasksView(),
     ),
   ];
 }

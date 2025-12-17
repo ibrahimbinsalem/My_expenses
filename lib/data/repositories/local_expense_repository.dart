@@ -1,9 +1,13 @@
+import 'package:get/get.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../local/app_database.dart';
+import '../models/bill_group_model.dart';
 import '../models/category_model.dart';
+import '../models/recurring_task_model.dart';
 import '../models/currency_model.dart';
 import '../models/goal_model.dart';
+import '../models/goal_contribution_model.dart';
 import '../models/reminder_model.dart';
 import '../models/notification_log_model.dart';
 import '../models/transaction_model.dart';
@@ -41,9 +45,13 @@ class LocalExpenseRepository {
     }
   }
 
-  Future<List<WalletModel>> fetchWallets() async {
+  Future<List<WalletModel>> fetchWallets({bool includeGoal = false}) async {
     final db = await _db;
-    final data = await db.query('wallets', orderBy: 'created_at DESC');
+    final data = await db.query(
+      'wallets',
+      where: includeGoal ? null : 'is_goal = 0',
+      orderBy: 'created_at DESC',
+    );
     return data.map(WalletModel.fromMap).toList();
   }
 
@@ -67,6 +75,18 @@ class LocalExpenseRepository {
     final db = await _db;
     await db.delete('transactions', where: 'wallet_id = ?', whereArgs: [id]);
     await db.delete('wallets', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<WalletModel?> fetchWalletById(int id) async {
+    final db = await _db;
+    final data = await db.query(
+      'wallets',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (data.isEmpty) return null;
+    return WalletModel.fromMap(data.first);
   }
 
   Future<List<CurrencyModel>> fetchCurrencies() async {
@@ -198,15 +218,112 @@ class LocalExpenseRepository {
     return data.map(TransactionModel.fromMap).toList();
   }
 
+  Future<List<BillGroupModel>> fetchBillGroups() async {
+    final db = await _db;
+    final groupsData = await db.query(
+      'bill_groups',
+      orderBy: 'event_date DESC',
+    );
+    final participantsData = await db.query('bill_participants');
+    final participantsByGroup = <int, List<BillParticipantModel>>{};
+    for (final map in participantsData) {
+      final participant = BillParticipantModel.fromMap(map);
+      participantsByGroup
+          .putIfAbsent(participant.billId, () => [])
+          .add(participant);
+    }
+    return groupsData.map((groupMap) {
+      final group = BillGroupModel.fromMap(groupMap);
+      return group.copyWith(
+        participants: participantsByGroup[group.id ?? -1] ?? const [],
+      );
+    }).toList();
+  }
+
+  Future<BillGroupModel?> insertBillGroup(BillGroupModel group) async {
+    final db = await _db;
+    final id = await db.insert('bill_groups', group.toMap());
+    for (final participant in group.participants) {
+      await db.insert(
+        'bill_participants',
+        participant.copyWith(billId: id).toMap(),
+      );
+    }
+    final savedGroup = await db.query(
+      'bill_groups',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (savedGroup.isEmpty) return null;
+    final participantsMaps = await db.query(
+      'bill_participants',
+      where: 'bill_id = ?',
+      whereArgs: [id],
+    );
+    return BillGroupModel.fromMap(savedGroup.first).copyWith(
+      participants:
+          participantsMaps.map(BillParticipantModel.fromMap).toList(),
+    );
+  }
+
+  Future<void> deleteBillGroup(int id) async {
+    final db = await _db;
+    await db.delete('bill_participants', where: 'bill_id = ?', whereArgs: [id]);
+    await db.delete('bill_groups', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> updateBillParticipantPaid(int participantId, double paid) async {
+    final db = await _db;
+    await db.update(
+      'bill_participants',
+      {'paid': paid},
+      where: 'id = ?',
+      whereArgs: [participantId],
+    );
+  }
+
+  Future<List<RecurringTaskModel>> fetchRecurringTasks() async {
+    final db = await _db;
+    final data = await db.query(
+      'recurring_tasks',
+      orderBy: 'next_date ASC',
+    );
+    return data.map(RecurringTaskModel.fromMap).toList();
+  }
+
+  Future<int> insertRecurringTask(RecurringTaskModel task) async {
+    final db = await _db;
+    return db.insert('recurring_tasks', task.toMap());
+  }
+
+  Future<void> deleteRecurringTask(int id) async {
+    final db = await _db;
+    await db.delete('recurring_tasks', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> updateRecurringTask(RecurringTaskModel task) async {
+    if (task.id == null) return;
+    final db = await _db;
+    await db.update(
+      'recurring_tasks',
+      task.toMap(),
+      where: 'id = ?',
+      whereArgs: [task.id],
+    );
+  }
+
   Future<int> addTransaction(TransactionModel transaction) async {
     final db = await _db;
-    final id = await db.insert('transactions', transaction.toMap());
-    await _updateWalletBalance(db, transaction);
-    return id;
+    return db.transaction<int>((txn) async {
+      final id = await txn.insert('transactions', transaction.toMap());
+      await _updateWalletBalance(txn, transaction);
+      return id;
+    });
   }
 
   Future<void> _updateWalletBalance(
-    Database db,
+    DatabaseExecutor db,
     TransactionModel transaction,
   ) async {
     final wallet = await db.query(
@@ -217,9 +334,16 @@ class LocalExpenseRepository {
     );
     if (wallet.isEmpty) return;
     final currentBalance = (wallet.first['balance'] as num).toDouble();
-    final newBalance = transaction.type == TransactionType.income
-        ? currentBalance + transaction.amount
-        : currentBalance - transaction.amount;
+    double newBalance = currentBalance;
+    switch (transaction.type) {
+      case TransactionType.income:
+        newBalance = currentBalance + transaction.amount;
+        break;
+      case TransactionType.expense:
+      case TransactionType.saving:
+        newBalance = currentBalance - transaction.amount;
+        break;
+    }
 
     await db.update(
       'wallets',
@@ -229,10 +353,103 @@ class LocalExpenseRepository {
     );
   }
 
+  Future<List<GoalContributionModel>> fetchGoalContributions(
+    int goalId,
+  ) async {
+    final db = await _db;
+    final data = await db.query(
+      'goal_contributions',
+      where: 'goal_id = ?',
+      whereArgs: [goalId],
+      orderBy: 'datetime(created_at) DESC',
+    );
+    return data.map(GoalContributionModel.fromMap).toList();
+  }
+
+  Future<int> insertGoalContribution(
+    GoalContributionModel contribution,
+  ) async {
+    final db = await _db;
+    return db.transaction<int>((txn) async {
+      final id = await txn.insert('goal_contributions', contribution.toMap());
+      await txn.rawUpdate(
+        'UPDATE goals SET current_amount = current_amount + ? WHERE id = ?',
+        [contribution.amount, contribution.goalId],
+      );
+      final goal = await txn.query(
+        'goals',
+        where: 'id = ?',
+        whereArgs: [contribution.goalId],
+        limit: 1,
+      );
+      if (goal.isNotEmpty) {
+        await _ensureGoalWallet(txn, goal.first);
+      }
+      return id;
+    });
+  }
+
+  Future<void> _ensureGoalWallet(
+    DatabaseExecutor db,
+    Map<String, Object?> goalRow,
+  ) async {
+    final goalId = goalRow['id'] as int?;
+    if (goalId == null) return;
+    final target = (goalRow['target_amount'] as num).toDouble();
+    final current = (goalRow['current_amount'] as num).toDouble();
+    final existingWallet = goalRow['wallet_id'] as int?;
+    if (current < target || existingWallet != null) {
+      return;
+    }
+    final locale = Get.locale?.languageCode ?? 'ar';
+    final goalName = goalRow['name'] as String? ?? 'Goal';
+    final walletName = locale == 'en'
+        ? 'Goal Savings - $goalName'
+        : 'مدخرات الهدف - $goalName';
+    final currency = (goalRow['currency'] as String?) ?? 'SAR';
+    final walletId = await db.insert('wallets', {
+      'user_id': null,
+      'name': walletName,
+      'type': 'goal',
+      'balance': current,
+      'currency': currency,
+      'created_at': DateTime.now().toIso8601String(),
+      'is_goal': 1,
+    });
+    await db.update(
+      'goals',
+      {'wallet_id': walletId},
+      where: 'id = ?',
+      whereArgs: [goalId],
+    );
+    await db.insert(
+      'notifications_log',
+      NotificationLogModel(
+        title: 'goals.status.completed'.tr,
+        body: 'transactions.goal.completed'
+            .trParams({'name': goalName}),
+        type: 'goal',
+        createdAt: DateTime.now(),
+      ).toMap(),
+    );
+  }
+
   Future<List<GoalModel>> fetchGoals() async {
     final db = await _db;
     final data = await db.query('goals', orderBy: 'deadline ASC');
     return data.map(GoalModel.fromMap).toList();
+  }
+
+  Future<GoalModel?> fetchGoalById(int id) async {
+    final db = await _db;
+    final data = await db.query(
+      'goals',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (data.isEmpty) return null;
+    return GoalModel.fromMap(data.first);
   }
 
   Future<int> upsertGoal(GoalModel goal) async {
@@ -295,6 +512,15 @@ class LocalExpenseRepository {
     await db.update(
       'notifications_log',
       {'is_read': 1},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<void> deleteNotification(int id) async {
+    final db = await _db;
+    await db.delete(
+      'notifications_log',
       where: 'id = ?',
       whereArgs: [id],
     );

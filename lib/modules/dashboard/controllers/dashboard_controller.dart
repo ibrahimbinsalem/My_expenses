@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/constants/gulf_currencies.dart';
 import '../../../core/utils/currency_utils.dart';
 import '../../../data/models/currency_model.dart';
+import '../../../data/models/reminder_model.dart';
 import '../../../data/models/transaction_model.dart';
 import '../../../data/models/wallet_model.dart';
 import '../../../data/repositories/local_expense_repository.dart';
@@ -12,6 +14,7 @@ import '../../../routes/app_routes.dart';
 
 class DashboardController extends GetxController {
   DashboardController(this._repository, this._insightService);
+  
 
   final LocalExpenseRepository _repository;
   final LocalInsightService _insightService;
@@ -27,6 +30,7 @@ class DashboardController extends GetxController {
   final primaryCurrencyName = 'ريال سعودي'.obs;
   final primaryCurrencyCode = 'SAR'.obs;
   final _currencyLookup = <String, String>{};
+  final isQuickFabOpen = false.obs;
 
   final navItems = const [
     DashboardNavItem(
@@ -135,6 +139,10 @@ class DashboardController extends GetxController {
     isBalanceHidden.toggle();
   }
 
+  void toggleQuickFab() {
+    isQuickFabOpen.toggle();
+  }
+
   String _resolveCurrencyName(String code) {
     final normalized = code.toUpperCase();
     final lookupName = _currencyLookup[normalized];
@@ -146,6 +154,143 @@ class DashboardController extends GetxController {
       }
     }
     return 'عملة @code'.trParams({'code': code});
+  }
+
+  Future<void> openQuickNoteSheet(BuildContext context) async {
+    final noteController = TextEditingController();
+    DateTime selectedDate = DateTime.now();
+    TimeOfDay selectedTime = TimeOfDay.fromDateTime(DateTime.now());
+    if (!context.mounted) return;
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 24,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          ),
+          child: StatefulBuilder(
+            builder: (context, setState) {
+              Future<void> pickDate() async {
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: selectedDate,
+                  firstDate: DateTime.now()
+                      .subtract(const Duration(days: 30)),
+                  lastDate: DateTime.now().add(const Duration(days: 365)),
+                );
+                if (picked != null) {
+                  setState(() => selectedDate = picked);
+                }
+              }
+
+              Future<void> pickTime() async {
+                final picked = await showTimePicker(
+                  context: context,
+                  initialTime: selectedTime,
+                );
+                if (picked != null) {
+                  setState(() => selectedTime = picked);
+                }
+              }
+
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'quickNote.title'.tr,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: noteController,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      labelText: 'quickNote.placeholder'.tr,
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.event_note),
+                          title: Text(DateFormat('dd MMM yyyy')
+                              .format(selectedDate)),
+                          onTap: pickDate,
+                        ),
+                      ),
+                      Expanded(
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.schedule),
+                          title: Text(selectedTime.format(context)),
+                          onTap: pickTime,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: () async {
+                        final text = noteController.text.trim();
+                        if (text.isEmpty) {
+                          Get.snackbar(
+                            'common.alert'.tr,
+                            'quickNote.required'.tr,
+                          );
+                          return;
+                        }
+                        final reminder = ReminderModel(
+                          message: text,
+                          date: selectedDate,
+                          time:
+                              '${selectedTime.hour.toString().padLeft(2, '0')}:${selectedTime.minute.toString().padLeft(2, '0')}',
+                        );
+                        await _repository.insertReminder(reminder);
+                        if (context.mounted) Navigator.of(context).pop();
+                        Get.snackbar(
+                          'common.success'.tr,
+                          'quickNote.saved'.tr,
+                        );
+                      },
+                      child: Text('common.save'.tr),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> openBillBook() async {
+    await Get.toNamed(AppRoutes.billBook);
+  }
+
+  Future<void> openAddTransaction() async {
+    await Get.toNamed(AppRoutes.addTransaction);
+    await loadDashboard();
+  }
+
+  Future<void> openTasks() async {
+    await Get.toNamed(AppRoutes.tasks);
   }
 
   Future<void> openAddFundsSheet(BuildContext context) async {

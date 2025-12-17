@@ -11,4 +11,6 @@ abstract class AppRoutes {
   static const currencySettings = '/settings/currencies';
   static const remindersSettings = '/settings/reminders';
   static const notifications = '/notifications';
+  static const billBook = '/bill-book';
+  static const tasks = '/tasks';
 }

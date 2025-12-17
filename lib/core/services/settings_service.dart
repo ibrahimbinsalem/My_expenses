@@ -9,6 +9,10 @@ class SettingsService extends GetxService {
   static const _budgetKey = 'monthly_budget';
   static const _aiKey = 'ai_insights_enabled';
   static const _notificationsKey = 'notifications_enabled';
+  static const _textScaleKey = 'text_scale_factor';
+  static const _autoBackupEnabledKey = 'auto_backup_enabled';
+  static const _autoBackupFrequencyKey = 'auto_backup_frequency';
+  static const _autoBackupLastRunKey = 'auto_backup_last_run';
 
   final GetStorage _box = GetStorage();
   ThemeMode _themeMode = ThemeMode.light;
@@ -17,6 +21,12 @@ class SettingsService extends GetxService {
   double _monthlyBudget = 3000;
   bool _aiInsightsEnabled = true;
   bool _notificationsEnabled = true;
+  double _textScale = 1.0;
+  bool _autoBackupEnabled = false;
+  String _autoBackupFrequency = 'weekly';
+  DateTime? _lastAutoBackup;
+  final RxDouble textScaleNotifier = 1.0.obs;
+  final Rxn<DateTime> lastAutoBackupNotifier = Rxn<DateTime>();
 
   Future<SettingsService> init() async {
     final themeName = _box.read<String>(_themeKey);
@@ -34,6 +44,16 @@ class SettingsService extends GetxService {
     _monthlyBudget = (_box.read<double>(_budgetKey) ?? 3000).toDouble();
     _aiInsightsEnabled = _box.read<bool>(_aiKey) ?? true;
     _notificationsEnabled = _box.read<bool>(_notificationsKey) ?? true;
+    _textScale = (_box.read<double>(_textScaleKey) ?? 1.0).clamp(0.8, 1.4);
+    textScaleNotifier.value = _textScale;
+    _autoBackupEnabled = _box.read<bool>(_autoBackupEnabledKey) ?? false;
+    _autoBackupFrequency =
+        _box.read<String>(_autoBackupFrequencyKey) ?? 'weekly';
+    final lastRunString = _box.read<String>(_autoBackupLastRunKey);
+    if (lastRunString != null) {
+      _lastAutoBackup = DateTime.tryParse(lastRunString);
+    }
+    lastAutoBackupNotifier.value = _lastAutoBackup;
     return this;
   }
 
@@ -43,6 +63,10 @@ class SettingsService extends GetxService {
   double get monthlyBudget => _monthlyBudget;
   bool get aiInsightsEnabled => _aiInsightsEnabled;
   bool get notificationsEnabled => _notificationsEnabled;
+  double get textScaleFactor => textScaleNotifier.value;
+  bool get autoBackupEnabled => _autoBackupEnabled;
+  String get autoBackupFrequency => _autoBackupFrequency;
+  DateTime? get lastAutoBackup => _lastAutoBackup;
 
   Future<void> setThemeMode(ThemeMode mode) async {
     _themeMode = mode;
@@ -77,5 +101,28 @@ class SettingsService extends GetxService {
   Future<void> setNotificationsEnabled(bool value) async {
     _notificationsEnabled = value;
     await _box.write(_notificationsKey, value);
+  }
+
+  Future<void> setTextScale(double value) async {
+    final clamped = value.clamp(0.8, 1.4);
+    _textScale = clamped;
+    textScaleNotifier.value = clamped;
+    await _box.write(_textScaleKey, clamped);
+  }
+
+  Future<void> setAutoBackupEnabled(bool value) async {
+    _autoBackupEnabled = value;
+    await _box.write(_autoBackupEnabledKey, value);
+  }
+
+  Future<void> setAutoBackupFrequency(String value) async {
+    _autoBackupFrequency = value;
+    await _box.write(_autoBackupFrequencyKey, value);
+  }
+
+  Future<void> setLastAutoBackup(DateTime dateTime) async {
+    _lastAutoBackup = dateTime;
+    lastAutoBackupNotifier.value = dateTime;
+    await _box.write(_autoBackupLastRunKey, dateTime.toIso8601String());
   }
 }

@@ -7,16 +7,25 @@ class Formatters {
     locale: 'ar_SA',
   );
   static final _dateFormatter = DateFormat('dd MMM yyyy');
+  static final _compactDateFormatter = DateFormat('dd MMM');
 
-  static String currency(num value, {String? symbol}) {
+  static String currency(
+    num value, {
+    String? symbol,
+    String? sign,
+  }) {
     if (symbol != null) {
       final formatter = NumberFormat.currency(symbol: symbol, decimalDigits: 2);
-      return formatter.format(value);
+      final formatted = formatter.format(value);
+      return sign == null || sign.isEmpty ? formatted : '$sign$formatted';
     }
-    return _currencyFormatter.format(value);
+    final formatted = _currencyFormatter.format(value);
+    return sign == null || sign.isEmpty ? formatted : '$sign$formatted';
   }
 
   static String shortDate(DateTime date) => _dateFormatter.format(date);
+  static String compactDate(DateTime date) =>
+      _compactDateFormatter.format(date);
 
   static String amountInArabicWords(num value, {String currency = 'ريال'}) {
     final integerPart = value.floor();

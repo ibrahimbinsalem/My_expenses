@@ -44,6 +44,7 @@ class WalletsController extends GetxController {
         balance: 0,
         currency: normalizedCurrency,
         createdAt: DateTime.now(),
+        isGoal: false,
       ),
     );
     if (initialBalance > 0) {
