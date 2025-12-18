@@ -13,6 +13,7 @@ class ActivityReportView extends GetView<ActivityReportController> {
 
   @override
   Widget build(BuildContext context) {
+    Get.put(ActivityReportController(Get.find()));
     return Scaffold(
       appBar: AppBar(title: Text('reports.activity.title'.tr)),
       body: Obx(() {
@@ -74,14 +75,12 @@ class ActivityReportView extends GetView<ActivityReportController> {
                 ),
               ),
             ),
-            Text(
-              bucket.label,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+            Text(bucket.label, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 12),
             Text(
-              'reports.activity.operationsCount'
-                  .trParams({'count': bucket.transactions.length.toString()}),
+              'reports.activity.operationsCount'.trParams({
+                'count': bucket.transactions.length.toString(),
+              }),
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const Divider(),
@@ -100,15 +99,8 @@ class ActivityReportView extends GetView<ActivityReportController> {
                           ? Colors.green
                           : Colors.red,
                     ),
-                    title: Text(
-                      Formatters.currency(
-                        tx.amount,
-                        symbol: '',
-                      ),
-                    ),
-                    subtitle: Text(
-                      Formatters.longDate(tx.date),
-                    ),
+                    title: Text(Formatters.currency(tx.amount, symbol: '')),
+                    subtitle: Text(Formatters.longDate(tx.date)),
                   );
                 },
               ),
@@ -148,8 +140,9 @@ class _ActivitySection extends StatelessWidget {
         Text(title, style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
         Card(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
           child: SizedBox(
             height: 240,
             child: Padding(

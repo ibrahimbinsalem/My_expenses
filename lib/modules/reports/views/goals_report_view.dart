@@ -11,6 +11,7 @@ class GoalsReportView extends GetView<GoalsReportController> {
 
   @override
   Widget build(BuildContext context) {
+    Get.put(GoalsReportController(Get.find()));
     return Scaffold(
       appBar: AppBar(title: Text('reports.goals.title'.tr)),
       body: Obx(() {

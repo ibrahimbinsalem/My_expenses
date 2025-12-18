@@ -11,6 +11,7 @@ class CategoryReportView extends GetView<CategoryReportController> {
 
   @override
   Widget build(BuildContext context) {
+    Get.put(CategoryReportController(Get.find()));
     return Scaffold(
       appBar: AppBar(title: Text('reports.category.title'.tr)),
       body: Obx(() {
@@ -48,8 +49,9 @@ class CategoryReportView extends GetView<CategoryReportController> {
             ),
             const SizedBox(height: 16),
             Text(
-              'reports.category.total'
-                  .trParams({'amount': total.toStringAsFixed(2)}),
+              'reports.category.total'.trParams({
+                'amount': total.toStringAsFixed(2),
+              }),
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 12),
@@ -60,8 +62,9 @@ class CategoryReportView extends GetView<CategoryReportController> {
                 ),
                 title: Text(entry.name),
                 subtitle: Text(
-                  'reports.category.percent'
-                      .trParams({'value': ((entry.value / total) * 100).toStringAsFixed(1)}),
+                  'reports.category.percent'.trParams({
+                    'value': ((entry.value / total) * 100).toStringAsFixed(1),
+                  }),
                 ),
                 trailing: Text(entry.value.toStringAsFixed(2)),
               ),

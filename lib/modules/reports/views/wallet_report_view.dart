@@ -12,6 +12,7 @@ class WalletReportView extends GetView<WalletReportController> {
 
   @override
   Widget build(BuildContext context) {
+    Get.put(WalletReportController(Get.find()));
     return Scaffold(
       appBar: AppBar(title: Text('reports.wallet.title'.tr)),
       body: Obx(() {
@@ -36,8 +37,10 @@ class WalletReportView extends GetView<WalletReportController> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('reports.wallet.summary'.tr,
-                        style: Theme.of(context).textTheme.titleMedium),
+                    Text(
+                      'reports.wallet.summary'.tr,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                     const SizedBox(height: 12),
                     Row(
                       children: [
@@ -90,17 +93,14 @@ class WalletReportView extends GetView<WalletReportController> {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        'reports.wallet.net'
-                            .trParams({
-                              'amount': Formatters.currency(
-                                wallet.net,
-                                symbol: wallet.currency,
-                              ),
-                            }),
+                        'reports.wallet.net'.trParams({
+                          'amount': Formatters.currency(
+                            wallet.net,
+                            symbol: wallet.currency,
+                          ),
+                        }),
                         style: TextStyle(
-                          color: wallet.net >= 0
-                              ? Colors.green
-                              : Colors.red,
+                          color: wallet.net >= 0 ? Colors.green : Colors.red,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -109,10 +109,9 @@ class WalletReportView extends GetView<WalletReportController> {
                           'income': wallet.income.toStringAsFixed(2),
                           'expense': wallet.expense.toStringAsFixed(2),
                         }),
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: Colors.grey),
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodySmall?.copyWith(color: Colors.grey),
                       ),
                     ],
                   ),
