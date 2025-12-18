@@ -1,38 +1,24 @@
 # My Expenses AI (Offline)
 
-تطبيق لإدارة المصاريف يعمل بالكامل بدون إنترنت مع تجربة مستخدم موجهة للسوق الخليجي. يعتمد على SQLite لتخزين البيانات محليًا ويستفيد من GetX لإدارة الحالة، بالإضافة إلى خدمات ذكية قابلة للتوسع مستقبلًا (OCR، تحويل صوت لنص، وتحليلات AI محلية).
+An expense management app that works offline, specifically targeted towards the Gulf market. It relies on SQLite for local data storage and leverages GetX for state management, along with pre-built services for OCR, speech-to-text analysis, and local AI predictions.
 
-## المميزات الحالية
-- لوحة تحكم تعرض الرصيد الإجمالي، المخططات الدائرية، والتعامل مع أحدث العمليات.
-- إضافة عملية جديدة (دخل/مصروف) مع اختيار المحفظة/الفئة ودعم الملء التلقائي من الفاتورة أو الصوت (خدمات محاكية الآن).
-- إدارة محافظ متعددة ومحاكاة لتحديث الرصيد بعد كل عملية.
-- نظام أهداف مالية مع عداد تقدّم بصري.
-- صفحة Insights تعرض استخدام الميزانية الشهرية ومخطط الصرف حسب الفئات.
-- صفحة إيصالات لتجميع العمليات المرفق بها صور فواتير (جاهز لتوصيل OCR لاحقًا).
-- تجربة Onboarding تفاعلية تهيئ المستخدم وتسمح بالتحكم الكامل في البيانات منذ البداية.
-- صفحة إعدادات مع تبديل الوضع الداكن/الفاتح وإدارة الفئات المخصصة.
+## Current Features
+- Dashboard that displays the total balance, pie charts, and interaction with the latest transactions.
+- New transaction addition with the option to select the account/category and automatic filling from invoice (mocked for now).
+- Account management with the ability to update the balance after each transaction.
+- Financial goals system with a progress counter.
+- Insights page displaying monthly expense usage and expense chart by categories.
+- Invoices page for batching transactions with attached invoice images (mocked for now).
+- Interactive onboarding experience that guides user data setup from the beginning.
+- Settings page with dark/light mode toggle and custom category management.
 
-## التكديس التقني
+## Technical Testing
 - **Flutter 3.9+**
-- **GetX** للتوجيه والتحكم في الحالة
-- **SQLite (sqflite)** لتخزين البيانات محليًا
-- **fl_chart** للرسوم البيانية
-- **Google Fonts / Cairo** للهوية المرئية
+- **GetX** for navigation and state management
+- **SQLite (sqflite)** for local data storage
+- **fl_chart** for data visualization
+- **Google Fonts / Cairo** for visual identity
 
-## البنية المعمارية
-```
-lib/
- ├─ core/        # الثيم، الألوان، البايندينغ
- ├─ data/        # نماذج، قاعدة البيانات، المستودعات والخدمات
- ├─ modules/     # كل شاشة مع Controller & View
- └─ routes/      # تعريف المسارات
-```
 
-## تشغيل المشروع
-```bash
-flutter pub get
-flutter run
-```
-
-> ملاحظة: تكامل OCR والصوت والذكاء الاصطناعي محليًا موضّح في الخدمات مع واجهات جاهزة للربط لاحقًا. كل البيانات تُحفظ داخل الجهاز لخصوصية أعلى.
-# My_expenses
+## App Can Using Multiple Languages
+## Architecture

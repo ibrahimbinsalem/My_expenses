@@ -60,7 +60,10 @@ class MyExpensesApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final settings = Get.find<SettingsService>();
     final themeController = Get.put(ThemeController(settings), permanent: true);
-    final localeController = Get.put(LocaleController(settings), permanent: true);
+    final localeController = Get.put(
+      LocaleController(settings),
+      permanent: true,
+    );
     final securityController = Get.find<SecurityController>();
     final initialRoute = settings.isOnboarded
         ? AppRoutes.dashboard
@@ -83,13 +86,9 @@ class MyExpensesApp extends StatelessWidget {
         builder: (context, child) {
           final overlay = Overlay(
             initialEntries: [
+              OverlayEntry(builder: (_) => child ?? const SizedBox.shrink()),
               OverlayEntry(
-                builder: (_) => child ?? const SizedBox.shrink(),
-              ),
-              OverlayEntry(
-                builder: (_) => AppLockOverlay(
-                  controller: securityController,
-                ),
+                builder: (_) => AppLockOverlay(controller: securityController),
               ),
             ],
           );
@@ -97,9 +96,7 @@ class MyExpensesApp extends StatelessWidget {
             final scale = settings.textScaleNotifier.value;
             final media = MediaQuery.of(context);
             return MediaQuery(
-              data: media.copyWith(
-                textScaleFactor: scale.clamp(0.8, 1.4),
-              ),
+              data: media.copyWith(textScaleFactor: scale.clamp(0.8, 1.4)),
               child: overlay,
             );
           });
