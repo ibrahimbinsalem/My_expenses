@@ -33,6 +33,7 @@ class SettingsView extends GetView<SettingsController> {
           _AiSettingsCard(controller: controller),
           _ReminderCard(controller: controller),
           _SecurityBackupCard(controller: controller),
+          const _ReportsCard(),
           const _BillBookLink(),
           const _RecurringTasksLink(),
           const _HelpCard(),
@@ -1122,6 +1123,71 @@ class _SecurityBackupCard extends StatelessWidget {
       },
     );
     return result;
+  }
+}
+
+class _ReportsCard extends StatelessWidget {
+  const _ReportsCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return _SettingsSection(
+      icon: Icons.auto_graph,
+      title: 'reports.settings.title'.tr,
+      subtitle: 'reports.settings.subtitle'.tr,
+      children: [
+        _ReportTile(
+          icon: Icons.pie_chart_outline,
+          title: 'reports.category.title'.tr,
+          subtitle: 'reports.category.subtitle'.tr,
+          route: AppRoutes.reportsCategory,
+        ),
+        _ReportTile(
+          icon: Icons.wallet_outlined,
+          title: 'reports.wallet.title'.tr,
+          subtitle: 'reports.wallet.subtitle'.tr,
+          route: AppRoutes.reportsWallet,
+        ),
+        _ReportTile(
+          icon: Icons.flag_outlined,
+          title: 'reports.goals.title'.tr,
+          subtitle: 'reports.goals.subtitle'.tr,
+          route: AppRoutes.reportsGoals,
+        ),
+        _ReportTile(
+          icon: Icons.bar_chart_rounded,
+          title: 'reports.activity.title'.tr,
+          subtitle: 'reports.activity.subtitle'.tr,
+          route: AppRoutes.reportsActivity,
+        ),
+      ],
+    );
+  }
+}
+
+class _ReportTile extends StatelessWidget {
+  const _ReportTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.route,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String route;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(icon),
+      title: Text(title),
+      subtitle: Text(subtitle),
+      trailing: const Icon(Icons.chevron_left),
+      onTap: () => Get.toNamed(route),
+    );
   }
 }
 

@@ -14,6 +14,7 @@ import '../models/transaction_model.dart';
 import '../models/user_insight_model.dart';
 import '../models/user_model.dart';
 import '../models/wallet_model.dart';
+import '../models/wallet_report_stat.dart';
 
 class LocalExpenseRepository {
   LocalExpenseRepository(this._database);
@@ -597,6 +598,78 @@ class LocalExpenseRepository {
     };
   }
 
+  Future<Map<String, double>> spendingByCategoryRange(
+    DateTime start,
+    DateTime end,
+  ) async {
+    final db = await _db;
+    final result = await db.rawQuery(
+      '''
+      SELECT categories.name as category, SUM(transactions.amount) as total
+      FROM transactions
+      INNER JOIN categories ON transactions.category_id = categories.id
+      WHERE transactions.type = 'expense'
+        AND date BETWEEN ? AND ?
+      GROUP BY categories.name
+      ORDER BY total DESC
+      ''',
+      [_normalizeRangeStart(start).toIso8601String(), _endOfDay(end).toIso8601String()],
+    );
+
+    return {
+      for (final row in result)
+        row['category'] as String: (row['total'] as num).toDouble(),
+    };
+  }
+
+  Future<List<WalletReportStat>> walletReport(
+    DateTime start,
+    DateTime end,
+  ) async {
+    final db = await _db;
+    final data = await db.rawQuery(
+      '''
+      SELECT wallets.id as wallet_id,
+             wallets.name,
+             wallets.currency,
+             COALESCE(SUM(
+               CASE WHEN transactions.type = 'income' THEN transactions.amount ELSE 0 END
+             ), 0) as income,
+             COALESCE(SUM(
+               CASE WHEN transactions.type != 'income' THEN transactions.amount ELSE 0 END
+             ), 0) as expense
+      FROM wallets
+      LEFT JOIN transactions
+        ON transactions.wallet_id = wallets.id
+       AND transactions.date BETWEEN ? AND ?
+      GROUP BY wallets.id, wallets.name, wallets.currency
+      ORDER BY wallets.created_at DESC
+      ''',
+      [_normalizeRangeStart(start).toIso8601String(), _endOfDay(end).toIso8601String()],
+    );
+    return data.map(WalletReportStat.fromMap).toList();
+  }
+
+  Future<Map<int, double>> goalContributionsByRange(
+    DateTime start,
+    DateTime end,
+  ) async {
+    final db = await _db;
+    final result = await db.rawQuery(
+      '''
+      SELECT goal_id, SUM(amount) as total
+      FROM goal_contributions
+      WHERE created_at BETWEEN ? AND ?
+      GROUP BY goal_id
+      ''',
+      [_normalizeRangeStart(start).toIso8601String(), _endOfDay(end).toIso8601String()],
+    );
+    return {
+      for (final row in result)
+        row['goal_id'] as int: (row['total'] as num).toDouble(),
+    };
+  }
+
   Future<double> monthlyBudgetUsage(
     double monthlyBudget,
     DateTime month,
@@ -658,5 +731,13 @@ class LocalExpenseRepository {
       orderBy: 'created_at DESC',
     );
     return data.map((row) => row['content'] as String).toList();
+  }
+
+  DateTime _normalizeRangeStart(DateTime date) {
+    return DateTime(date.year, date.month, date.day);
+  }
+
+  DateTime _endOfDay(DateTime date) {
+    return DateTime(date.year, date.month, date.day, 23, 59, 59, 999);
   }
 }

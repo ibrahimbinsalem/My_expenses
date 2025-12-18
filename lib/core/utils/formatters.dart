@@ -26,6 +26,8 @@ class Formatters {
   static String shortDate(DateTime date) => _dateFormatter.format(date);
   static String compactDate(DateTime date) =>
       _compactDateFormatter.format(date);
+  static String longDate(DateTime date) =>
+      DateFormat.yMMMMEEEEd(Intl.getCurrentLocale()).format(date);
 
   static String amountInArabicWords(num value, {String currency = 'ريال'}) {
     final integerPart = value.floor();

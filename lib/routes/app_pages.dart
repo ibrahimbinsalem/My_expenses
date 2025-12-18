@@ -7,6 +7,14 @@ import '../modules/goals/views/goal_details_view.dart';
 import '../modules/goals/views/goal_celebration_view.dart';
 import '../modules/insights/views/insights_view.dart';
 import '../modules/onboarding/views/onboarding_view.dart';
+import '../modules/reports/controllers/activity_report_controller.dart';
+import '../modules/reports/controllers/category_report_controller.dart';
+import '../modules/reports/controllers/goals_report_controller.dart';
+import '../modules/reports/controllers/wallet_report_controller.dart';
+import '../modules/reports/views/activity_report_view.dart';
+import '../modules/reports/views/category_report_view.dart';
+import '../modules/reports/views/goals_report_view.dart';
+import '../modules/reports/views/wallet_report_view.dart';
 import '../modules/receipts/views/receipts_view.dart';
 import '../modules/settings/views/category_settings_view.dart';
 import '../modules/settings/views/currency_settings_view.dart';
@@ -64,6 +72,34 @@ class AppPages {
     GetPage(
       name: AppRoutes.tasks,
       page: () => const TasksView(),
+    ),
+    GetPage(
+      name: AppRoutes.reportsCategory,
+      page: () => const CategoryReportView(),
+      binding: BindingsBuilder(
+        () => Get.put(CategoryReportController(Get.find())),
+      ),
+    ),
+    GetPage(
+      name: AppRoutes.reportsWallet,
+      page: () => const WalletReportView(),
+      binding: BindingsBuilder(
+        () => Get.put(WalletReportController(Get.find())),
+      ),
+    ),
+    GetPage(
+      name: AppRoutes.reportsGoals,
+      page: () => const GoalsReportView(),
+      binding: BindingsBuilder(
+        () => Get.put(GoalsReportController(Get.find())),
+      ),
+    ),
+    GetPage(
+      name: AppRoutes.reportsActivity,
+      page: () => const ActivityReportView(),
+      binding: BindingsBuilder(
+        () => Get.put(ActivityReportController(Get.find())),
+      ),
     ),
   ];
 }

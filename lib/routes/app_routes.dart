@@ -15,4 +15,8 @@ abstract class AppRoutes {
   static const notifications = '/notifications';
   static const billBook = '/bill-book';
   static const tasks = '/tasks';
+  static const reportsCategory = '/reports/category';
+  static const reportsWallet = '/reports/wallet';
+  static const reportsGoals = '/reports/goals';
+  static const reportsActivity = '/reports/activity';
 }
